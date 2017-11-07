@@ -51,7 +51,9 @@ void Mesh::loadOFF (const std::string & filename) {
     clear ();
 	ifstream in (filename.c_str ());
     if (!in) 
+    {
         exit (1);
+    }
 	string offString;
     unsigned int sizeV, sizeT, tmp;
     in >> offString >> sizeV >> sizeT >> tmp;
@@ -76,6 +78,81 @@ void Mesh::loadOFF (const std::string & filename) {
     in.close ();
     centerAndScaleToUnit ();
     recomputeNormals ();
+}
+
+//-----------------------------------------------------------------------------
+//--------------------------calculateConfFact----------------------------------
+//-----------------------------------------------------------------------------
+
+void Mesh::calculateConfFact () 
+{
+	for (unsigned int i = 0; i < m_positions.size (); i++) 
+	{
+		float gaussCurv = getGaussCurv(i);
+		float targCurv = getTargetCurv(i, gaussCurv);
+
+		float laplacian = getLaplacian(i);
+
+		m_confFact[i] = (targCurv - gaussCurv) / laplacian;
+	}
+}
+
+float Mesh::getGaussCurv(unsigned int i)
+{
+	return 0;
+}
+
+float Mesh::getTargetCurv(unsigned int i, float gaussCurv)
+{
+	return 0;
+}
+
+float Mesh::getLaplacian(unsigned int i)
+{
+	return 0;
+}
+
+//-----------------------------------------------------------------------------
+//-------------------------calculateSignature----------------------------------
+//-----------------------------------------------------------------------------
+
+// TODO: memory effective function, orders triangles indexes by area size,
+// calculates probability
+void Mesh::calculateSignature () 
+{
+	for (unsigned int i = 0; i < 5 * m_positions.size (); i++) 
+	{
+		int triangleIdx = getRandTri();
+		Vec3f randPoint = getRandPoint(m_triangles[triangleIdx]);
+		float randConfFactor = getConfFactor(randPoint, triangleIdx);
+
+		incrSignature(randConfFactor);
+	}
+
+	for (unsigned int i = 0; i < 5 * m_positions.size (); i++) 
+	{
+		incrSignature(m_confFact[i]);
+	}
+}
+
+int Mesh::getRandTri()
+{
+	return 0;
+}
+
+Vec3f Mesh::getRandPoint(Triangle tri)
+{
+	return Vec3f(0,0,0);
+}
+
+float Mesh::getConfFactor(Vec3f point, unsigned int triIdx)
+{
+	return 0;
+}
+
+void Mesh::incrSignature(float confFact)
+{
+	
 }
 
 //-----------------------------------------------------------------------------

@@ -27,6 +27,11 @@ struct Edge {
  												else				return (j < other.j); }
 };
 
+struct Bin 
+{
+	unsigned int occur, idx;
+};
+
 /// A Mesh class, storing a list of vertices and a list of triangles indexed over it.
 class Mesh {
 public:
@@ -45,6 +50,9 @@ public:
 
 	/// Loads the mesh from a <file>.off
 	void loadOFF (const std::string & filename);
+
+	void calculateConfFact ();
+	void calculateSignature ();
     
     /// Compute smooth per-vertex normals
     void recomputeNormals ();
@@ -66,11 +74,22 @@ public:
 private:
     std::vector<Vec3f> m_positions;
     std::vector<Vec3f> m_normals;
+    std::vector<float> m_confFact;
+    std::vector<Bin> signature;
     std::vector<Triangle> m_triangles;
     std::vector<std::vector<Triangle> > m_nneighbours;
     std::map <Edge, unsigned int> middle_points;
     std::map <std::pair<Triangle, unsigned int>, float> cotans;
     
+    float getGaussCurv(unsigned int i);
+	float getTargetCurv(unsigned int i, float gaussCurv);
+	float getLaplacian(unsigned int i);
+
+	int getRandTri();
+	Vec3f getRandPoint(Triangle tri);
+	float getConfFactor(Vec3f point, unsigned int triIdx);
+	void incrSignature(float confFact);
+
     void getMaxMin(float& max_x, float& max_y, float& max_z, float& min_x,
 				float& min_y, float& min_z);
 				
