@@ -59,6 +59,7 @@ void Mesh::loadOFF (const std::string & filename) {
     in >> offString >> sizeV >> sizeT >> tmp;
     m_positions.resize (sizeV);
     m_triangles.resize (sizeT);
+    m_confFact.resize (sizeV);
     m_nneighbours.resize(sizeV);
     for (unsigned int i = 0; i < sizeV; i++)
         in >> m_positions[i];
@@ -120,6 +121,8 @@ float Mesh::getLaplacian(unsigned int i)
 // calculates probability
 void Mesh::calculateSignature () 
 {
+	initializeSignature(-99, 100);
+
 	for (unsigned int i = 0; i < 5 * m_positions.size (); i++) 
 	{
 		int triangleIdx = getRandTri();
@@ -132,6 +135,19 @@ void Mesh::calculateSignature ()
 	for (unsigned int i = 0; i < 5 * m_positions.size (); i++) 
 	{
 		incrSignature(m_confFact[i]);
+	}
+}
+
+void Mesh::initializeSignature(int min, int max)
+{
+	signature.resize (max - min);
+
+	for(unsigned int i = 0; i < signature.size(); i ++)
+	{
+		Bin b;
+		b.occur = 0;
+		b.idx = min + i;
+		signature[i] = b;
 	}
 }
 
@@ -152,7 +168,7 @@ float Mesh::getConfFactor(Vec3f point, unsigned int triIdx)
 
 void Mesh::incrSignature(float confFact)
 {
-	
+
 }
 
 //-----------------------------------------------------------------------------

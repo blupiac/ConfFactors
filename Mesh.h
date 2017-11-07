@@ -85,6 +85,7 @@ private:
 	float getTargetCurv(unsigned int i, float gaussCurv);
 	float getLaplacian(unsigned int i);
 
+	void initializeSignature(int min, int max);
 	int getRandTri();
 	Vec3f getRandPoint(Triangle tri);
 	float getConfFactor(Vec3f point, unsigned int triIdx);
