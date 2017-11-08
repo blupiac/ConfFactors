@@ -43,6 +43,9 @@ void Mesh::clear () {
     middle_points.clear();
 }
 
+// Utilise pour indexes qui representent des coordonees de position
+enum Dim { x, y, z };
+
 //-----------------------------------------------------------------------------
 //--------------------------------loadOFF--------------------------------------
 //-----------------------------------------------------------------------------
@@ -98,9 +101,95 @@ void Mesh::calculateConfFact ()
 	}
 }
 
-float Mesh::getGaussCurv(unsigned int i)
+float Mesh::getGaussCurv(unsigned int pointIdx)
 {
-	return 0;
+	std::vector<Triangle> neighbours = m_nneighbours[pointIdx];
+	float curv;
+	float totalAngle = 0;
+
+	for(unsigned int i = 0; i < neighbours.size(); i++)
+	{
+		totalAngle += getAngle(neighbours[i], pointIdx);
+	}
+
+	// interior
+	if(neighbours.size() == 6)
+	{
+		curv = 2 * M_PI - totalAngle;
+	}
+	// edge
+	else if(neighbours.size() == 3)
+	{
+		curv = M_PI - totalAngle;
+	}
+	// how did this point get here?
+	else
+	{
+		std::cout << "Point " << pointIdx << " has an unsupported number of neighbours." << std::endl;
+		return 0;
+	}
+
+	return curv;
+}
+
+// get angle between 3 points in a 3d space
+float Mesh::getAngle(Triangle tri, int pointIdx)
+{
+	// https://stackoverflow.com/questions/19729831/angle-between-3-points-in-3d-space
+
+	Vec3f v1, v2;
+
+	// finding out which is the current point
+	if(m_positions[tri[0]] == m_positions[pointIdx])
+	{
+		//BA vector
+		v1 = Vec3f(m_positions[tri[1]][x] - m_positions[tri[0]][x],
+					m_positions[tri[1]][y] - m_positions[tri[0]][y],
+					m_positions[tri[1]][z] - m_positions[tri[0]][z]);
+
+		//BC vector
+		v2 = Vec3f(m_positions[tri[2]][x] - m_positions[tri[0]][x],
+					m_positions[tri[2]][y] - m_positions[tri[0]][y],
+					m_positions[tri[2]][z] - m_positions[tri[0]][z]);
+	}
+	else if(m_positions[tri[1]] == m_positions[pointIdx])
+	{
+		//BA vector
+		v1 = Vec3f(m_positions[tri[0]][x] - m_positions[tri[1]][x],
+					m_positions[tri[0]][y] - m_positions[tri[1]][y],
+					m_positions[tri[0]][z] - m_positions[tri[1]][z]);
+
+		//BC vector
+		v2 = Vec3f(m_positions[tri[2]][x] - m_positions[tri[1]][x],
+					m_positions[tri[2]][y] - m_positions[tri[1]][y],
+					m_positions[tri[2]][z] - m_positions[tri[1]][z]);
+	}
+	else if(m_positions[tri[2]] == m_positions[pointIdx])
+	{
+		//BA vector
+		v1 = Vec3f(m_positions[tri[0]][x] - m_positions[tri[2]][x],
+					m_positions[tri[0]][y] - m_positions[tri[2]][y],
+					m_positions[tri[0]][z] - m_positions[tri[2]][z]);
+
+		//BC vector
+		v2 = Vec3f(m_positions[tri[1]][x] - m_positions[tri[2]][x],
+					m_positions[tri[1]][y] - m_positions[tri[2]][y],
+					m_positions[tri[1]][z] - m_positions[tri[2]][z]);
+	}
+	else
+	{
+		std::cout << "Point " << pointIdx << " has an unsupported number of neighbours." << std::endl;
+	}
+
+	float v1mag = sqrt(v1[x] * v1[x] + v1[y] * v1[y] + v1[z] * v1[z]);
+	Vec3f v1norm = Vec3f(v1[x] / v1mag, v1[y] / v1mag, v1[z] / v1mag);
+
+	float v2mag = sqrt(v2[x] * v2[x] + v2[y] * v2[y] + v2[z] * v2[z]);
+	Vec3f v2norm = Vec3f(v2[x] / v2mag, v2[y] / v2mag, v2[z] / v2mag);
+
+	float res = v1norm[x] * v2norm[x] + v1norm[y] * v2norm[y] + v1norm[z] * v2norm[z];
+
+	return  acos(res);
 }
 
 float Mesh::getTargetCurv(unsigned int i, float gaussCurv)

@@ -82,6 +82,7 @@ private:
     std::map <std::pair<Triangle, unsigned int>, float> cotans;
     
     float getGaussCurv(unsigned int i);
+    float getAngle(Triangle tri, int pointIdx);
 	float getTargetCurv(unsigned int i, float gaussCurv);
 	float getLaplacian(unsigned int i);
 
