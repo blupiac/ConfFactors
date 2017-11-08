@@ -62,9 +62,9 @@ void Mesh::loadOFF (const std::string & filename) {
     in >> offString >> sizeV >> sizeT >> tmp;
     m_positions.resize (sizeV);
     m_triangles.resize (sizeT);
-    m_area.resize (sizeT);
     m_confFact.resize (sizeV);
     m_nneighbours.resize(sizeV);
+    totalArea = 0; totalCurv = 0;
     for (unsigned int i = 0; i < sizeV; i++)
         in >> m_positions[i];
     int s;
@@ -80,7 +80,7 @@ void Mesh::loadOFF (const std::string & filename) {
             m_nneighbours[m_triangles[i][j]].push_back(m_triangles[i]);
         }
 
-        // fills area vector
+        // should fill area vector
         // https://www.opengl.org/discussion_boards/showthread.php/159771-How-can-I-find-the-area-of-a-3D-triangle
         // uses a sqrt, might look for smth else later
 
@@ -99,8 +99,7 @@ void Mesh::loadOFF (const std::string & filename) {
 						v1[z] * v2[x] - v1[x] * v2[z],
 						v1[x] * v2[y] - v1[y] * v2[x]);
 
-		m_area[i] = 0.5 * sqrt(v3[x]*v3[x] + v3[y]*v3[y] + v3[z]*v3[z]);
-
+		totalArea += 0.5 * sqrt(v3[x]*v3[x] + v3[y]*v3[y] + v3[z]*v3[z]);
     }
     in.close ();
     centerAndScaleToUnit ();
@@ -116,7 +115,7 @@ void Mesh::calculateConfFact ()
 	for (unsigned int i = 0; i < m_positions.size (); i++) 
 	{
 		float gaussCurv = getGaussCurv(i);
-		float targCurv = getTargetCurv(i, gaussCurv);
+		float targCurv = getTargetCurv(i);
 
 		float laplacian = getLaplacian(i);
 
@@ -152,6 +151,7 @@ float Mesh::getGaussCurv(unsigned int pointIdx)
 		return 0;
 	}
 
+	totalCurv += curv;
 	return curv;
 }
 
@@ -215,10 +215,63 @@ float Mesh::getAngle(Triangle tri, int pointIdx)
 	return  acos(res);
 }
 
-float Mesh::getTargetCurv(unsigned int i, float gaussCurv)
+float Mesh::getTargetCurv(unsigned int i)
 {
+	std::vector<Triangle> tris = m_nneighbours[i];
+	float area = 0;
 
-	return 0;
+	for(unsigned int i = 0; i < tris.size(); i++)
+	{
+		area += getArea(tris[i]);
+	}
+
+	return totalCurv * area / totalArea;
+}
+
+float Mesh::getArea(unsigned int i)
+{
+    // https://www.opengl.org/discussion_boards/showthread.php/159771-How-can-I-find-the-area-of-a-3D-triangle
+    // uses a sqrt, might look for smth else later
+
+    //BA vector
+	Vec3f v1 = Vec3f(m_positions[m_triangles[i][1]][x] - m_positions[m_triangles[i][0]][x],
+				m_positions[m_triangles[i][1]][y] - m_positions[m_triangles[i][0]][y],
+				m_positions[m_triangles[i][1]][z] - m_positions[m_triangles[i][0]][z]);
+
+	//BC vector
+	Vec3f v2 = Vec3f(m_positions[m_triangles[i][2]][x] - m_positions[m_triangles[i][0]][x],
+				m_positions[m_triangles[i][2]][y] - m_positions[m_triangles[i][0]][y],
+				m_positions[m_triangles[i][2]][z] - m_positions[m_triangles[i][0]][z]);
+
+	//cross prod
+	Vec3f v3 = Vec3f(v1[y] * v2[z] - v1[z] * v2[y],
+					v1[z] * v2[x] - v1[x] * v2[z],
+					v1[x] * v2[y] - v1[y] * v2[x]);
+
+	return 0.5 * sqrt(v3[x]*v3[x] + v3[y]*v3[y] + v3[z]*v3[z]);
+}
+
+float Mesh::getArea(Triangle tri)
+{
+    // https://www.opengl.org/discussion_boards/showthread.php/159771-How-can-I-find-the-area-of-a-3D-triangle
+    // uses a sqrt, might look for smth else later
+
+    //BA vector
+	Vec3f v1 = Vec3f(m_positions[tri[1]][x] - m_positions[tri[0]][x],
+				m_positions[tri[1]][y] - m_positions[tri[0]][y],
+				m_positions[tri[1]][z] - m_positions[tri[0]][z]);
+
+	//BC vector
+	Vec3f v2 = Vec3f(m_positions[tri[2]][x] - m_positions[tri[0]][x],
+				m_positions[tri[2]][y] - m_positions[tri[0]][y],
+				m_positions[tri[2]][z] - m_positions[tri[0]][z]);
+
+	//cross prod
+	Vec3f v3 = Vec3f(v1[y] * v2[z] - v1[z] * v2[y],
+					v1[z] * v2[x] - v1[x] * v2[z],
+					v1[x] * v2[y] - v1[y] * v2[x]);
+
+	return 0.5 * sqrt(v3[x]*v3[x] + v3[y]*v3[y] + v3[z]*v3[z]);
 }
 
 float Mesh::getLaplacian(unsigned int i)

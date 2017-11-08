@@ -75,16 +75,19 @@ private:
     std::vector<Vec3f> m_positions;
     std::vector<Vec3f> m_normals;
     std::vector<float> m_confFact;
-    std::vector<float> m_area;
     std::vector<Bin> signature;
     std::vector<Triangle> m_triangles;
+    // TODO: send indexes instead of triangles, this way getTargetCurv can be optimized
     std::vector<std::vector<Triangle> > m_nneighbours;
     std::map <Edge, unsigned int> middle_points;
     std::map <std::pair<Triangle, unsigned int>, float> cotans;
+    float totalArea, totalCurv;
     
     float getGaussCurv(unsigned int i);
     float getAngle(Triangle tri, int pointIdx);
-	float getTargetCurv(unsigned int i, float gaussCurv);
+	float getTargetCurv(unsigned int i);
+    float getArea(unsigned int i);
+    float getArea(Triangle tri);
 	float getLaplacian(unsigned int i);
 
 	void initializeSignature(int min, int max);
