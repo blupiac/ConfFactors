@@ -75,6 +75,7 @@ private:
     std::vector<Vec3f> m_positions;
     std::vector<Vec3f> m_normals;
     std::vector<float> m_confFact;
+    std::vector<float> m_area;
     std::vector<Bin> signature;
     std::vector<Triangle> m_triangles;
     std::vector<std::vector<Triangle> > m_nneighbours;
