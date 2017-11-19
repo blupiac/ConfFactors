@@ -89,6 +89,8 @@ private:
     float getArea(unsigned int i);
     float getArea(Triangle tri);
 	float getLaplacian(unsigned int i);
+    float getAMixed(unsigned int i);
+    bool isObtuse(Triangle t);
 
 	void initializeSignature(int min, int max);
 	int getRandTri();

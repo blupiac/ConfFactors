@@ -110,6 +110,9 @@ void Mesh::loadOFF (const std::string & filename) {
 //--------------------------calculateConfFact----------------------------------
 //-----------------------------------------------------------------------------
 
+// this helped a lot, much clearer explanation (page 3):
+// https://www.researchgate.net/profile/Ioannis_Pratikakis/publication/220888687_ConTopo_Non-Rigid_3D_Object_Retrieval_using_Topological_Information_guided_by_Conformal_Factors/links/0fcfd5107ee6419464000000.pdf
+
 void Mesh::calculateConfFact () 
 {
 	for (unsigned int i = 0; i < m_positions.size (); i++) 
@@ -274,9 +277,49 @@ float Mesh::getArea(Triangle tri)
 	return 0.5 * sqrt(v3[x]*v3[x] + v3[y]*v3[y] + v3[z]*v3[z]);
 }
 
+// http://www.geometry.caltech.edu/pubs/DMSB_III.pdf
+// p9-10
+
 float Mesh::getLaplacian(unsigned int i)
 {
+	float AMixed = getAMixed(i);
+
+	// get 1-neighborhood points
+	std::set<unsigned int> neighPoint = getVoisins(m_nneighbours[i], i);
+
+	float sumCotDist = 0;
+
+	std::set<unsigned int>::iterator ptIt;
+	for (ptIt = neighPoint.begin(); ptIt != neighPoint.end(); ++ptIt)
+	{
+		float cots = 0;
+
+		// get 2 triangles that contain main point plus the one of this iteration
+		std::vector<Triangle> triContain = containPoint(*ptIt, m_nneighbours[i]);
+		
+		// calculate cot on both angles wanted (alpha and betha on p9 illustration on the link)
+		std::vector<Triangle>::iterator triIt;
+		for (triIt = triContain.begin(); triIt != triContain.end(); ++triIt)
+		{
+			float cot = cotan(i, *ptIt, *triIt);
+			if(!std::isnan(cot) && cot < pow(10,3))
+				cots += cot;
+		}
+
+		sumCotDist += cots * dist(m_positions[i], m_positions[*ptIt]);
+	}
+
+	return 0.5 * AMixed * sumCotDist;
+}
+
+float Mesh::getAMixed(unsigned int i)
+{
 	return 0;
+}
+
+bool Mesh::isObtuse(Triangle t)
+{
+	return false;
 }
 
 //-----------------------------------------------------------------------------
