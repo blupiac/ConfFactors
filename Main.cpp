@@ -30,13 +30,13 @@
 
 using namespace std;
 
-#define USE_SHADER
+//#define USE_SHADER
 //#define USE_BVH
 //#define USE_NPR
 
 static const unsigned int DEFAULT_SCREENWIDTH = 1024;
 static const unsigned int DEFAULT_SCREENHEIGHT = 768;
-static const string DEFAULT_MESH_FILE ("models/monkey.off");
+static const string DEFAULT_MESH_FILE ("models/rhino.off");
 
 // Rayons envoyes en AO, et portee maximale pour une intersection
 static const unsigned int AO_SAMPLES = 10;
@@ -75,43 +75,6 @@ GLuint defaultShader;
 enum Dim { x, y, z };
 // Utilise pour indexes qui representent des coordonees de couleur
 enum Col { r, g, b };
-
-// Represente une source de lumiere, avec couleur, intensite et position
-class LightSource {
-
-public:
-
-  inline LightSource (void)  { intens = col[r] = col[g] = col[b] = m_p[x] = m_p[y] = m_p[z] = 0.0; }
-
-  inline LightSource (float p0, float p1, float p2,
-  						float c0, float c1, float c2, float intensity) {
-    m_p = Vec3f(p0, p1, p2);
-    col = Vec3f(c0, c1, c2);
-    
-    intens = intensity;
-  }
-  
-  float intensity()
-  {
-  		return intens;
-  }
-  
-  Vec3f pos()
-  {
-  		return m_p;
-  }
-  
-  Vec3f color()
-  {
-  		return col;
-  }
-  
-protected:
-  Vec3f m_p;
-  Vec3f col;
-  float intens;
-  
-};
 
 //-----------------------------------------------------------------------------
 //-----------------------------------Ray---------------------------------------
@@ -542,7 +505,6 @@ private:
 static std::vector<Vec4f> colorResponses; // Cached per-vertex color response, updated at each frame
 static std::vector<bool> shadowResponses; 	// vecteur de booleens qui disent si un point est dans l'ombre
 static std::vector<float> aoResponses; // vecteur de floats qui disent la quantite d'AO sur un point
-static std::vector<LightSource> lights; // vecteur avec les lumieres
 #ifdef USE_BVH
 static BVH* bvh; // BVH utilise dans le programme
 #endif
@@ -649,13 +611,7 @@ void init (const char * modelFilename) {
 	glLineWidth (2.0); // Set the width of edges in GL_LINE polygon mode
 
     //glClearColor (0.0f, 0.0f, 0.0f, 1.0f); // Background color
-    glClearColor (0.0f, 0.5f, 0.8f, 1.0f); // Background color
-    
-	lights.resize(1);
-	
-	lights[0] = LightSource(-10.0f, 10.0f, 10.0f,
-								0.2f, 0.5f, 0.0f, 3.0f);
-    
+    glClearColor (0.0f, 0.5f, 0.8f, 1.0f); // Background color    
 
 	mesh.loadOFF (modelFilename);
 
@@ -768,151 +724,15 @@ float ddx (Vec3f n, Vec3f wh, Vec3f wi, Vec3f w0) {
 //-----------------------------------------------------------------------------
 
 void updatePerVertexColorResponse () {
-	
-	float refl = 2.0f;
-	
-	// Mets ne nombre de lumieres adequat
-	if(nlights == 3)
-	{
-		lights.resize(3);
-		lights[0] = LightSource(-10.0f, 10.0f, 10.0f,
-								0.2f, 0.5f, 0.0f, 0.6f);
-		lights[1] = LightSource(-5.0f, 5.0f, -10.0f,
-								0.0f, 0.5f, 0.9f, 0.7f);
-		lights[2] = LightSource(10.0f, 0.0f, 3.0f,
-								0.8f, 0.3f, 0.4f, 0.9f);
-	}
-	else if(nlights == 1)
-	{
-		lights.resize(1);
-		lights[0] = LightSource(10.0f, 10.0f, 10.0f,
-								0.2f, 0.5f, 0.0f, 3.0f);
-	}
-	
-	Vec3f col;
 
-	// Calcule sur CPU des BRDFs demandees
     for (unsigned int i = 0; i < colorResponses.size (); i++)
     {
-    	col = Vec3f(0.0,0.0,0.0);
-    	for (unsigned int j = 0; j < lights.size (); j++)
-    	{
-    		Vec3f n = mesh.normals()[i];
-    	
-			Vec3f wi = (mesh.positions()[i] - lights[j].pos());
-			Vec3f nwi = normalize(wi);
-			
-			Vec3f camPos;
-			camera.getPos(camPos);
-			
-			Vec3f w0 = (camPos - mesh.positions()[i]);
-			Vec3f nw0 = normalize(w0);
-			
-			Vec3f wh = (nwi + nw0) / length(wi + w0);
-			Vec3f nwh = normalize(wh);
-			
-
-			float intensity;
-			
-			// Lambert
-			if(mode == 1)
-				intensity = dot(n, nwi) * (refl/M_PI) *
-							attLum(wi.length(), lights[j].intensity());
-			
-			
-			// Phong
-			else if(mode == 2)
-				intensity = dot(n, nwi) * phong(n, nwh) *
-							attLum(wi.length(), lights[j].intensity());
-			
-			
-			// Micro-facettes Cook-Torrance
-			else if(mode == 3)
-				intensity = dot(n, nwi) * cooktorrance(n, nwh, nwi, nw0) * 3 *
-							attLum(wi.length(), lights[j].intensity());
-			
-			
-			// Micro-faucets GGX
-			// if(mode == 4)
-			else
-				intensity = dot(n, nwi) * ddx(n, nwh, nwi, nw0) * 5 *
-							attLum(wi.length(), lights[j].intensity());
-			
-			if(intensity > 0)
-				col += Vec3f( 	intensity * lights[j].color()[r] * aoResponses[i],
-								intensity * lights[j].color()[g] * aoResponses[i],
-								intensity * lights[j].color()[b] * aoResponses[i]);
-		}
-		
-		#ifdef USE_SHADER
-			colorResponses[i][r] = col[r];
-			colorResponses[i][g] = col[g];
-			colorResponses[i][b] = col[b];
-
-			// Determination du 4eme element du vecteur couleur, qui indique ombre et AO 
-			if(shadowResponses[i])
-			{
-
-				colorResponses[i][3] = -1.0*aoResponses[i];
-			}
-
-			else
-			{
-
-				colorResponses[i][3] = 1.0*aoResponses[i];
-			}
-		#else
-			colorResponses[i] = Vec4f(col[r],col[g],col[b],0.0);
-		#endif
+		colorResponses[i] = Vec4f(mesh.normalizeConf(i) * aoResponses[i],
+								aoResponses[i],
+								aoResponses[i],0.0);
     }
 }
 
-
-
-//-----------------------------------------------------------------------------
-//-------------------------computePerVertexShadow------------------------------
-//-----------------------------------------------------------------------------
-
-
-// Calcule ombre sur chaque point en voyant s'il y a intersection avec la geometrie
-void computePerVertexShadow (float radius) {
-
-	int ombr = 0;
-
-	for(unsigned int i = 0; i < mesh.positions().size() ; i++)
-	{
-		const Vec3f& dest = lights[0].pos();
-		const Vec3f& origin = mesh.positions()[i] + dest * 0.00001; 
-		Ray raycast = Ray(origin, dest - origin);
-		
-		shadowResponses[i] = false;
-		
-		#ifdef BVH
-		Triangle inter = Triangle(0, 0, 0);
-		bvh->searchIntersection(mesh.positions(), raycast, inter, 100.0);
-		
-		if(inter[0] != 0 || inter[1] != 0 || inter[2] != 0)
-		{
-			ombr++;
-			shadowResponses[i] = true; // est a l'ombre
-		}
-		#else		
-		for(unsigned int j = 0; j < mesh.triangles().size() ; j++)
-		{			
-			if( raycast.intersectsPoly(mesh.triangles()[j]) )
-			{
-				ombr++;
-				shadowResponses[i] = true; // est a l'ombre
-				break;
-			}
-		}
-		#endif
-	}
-	
-	cout << (float)ombr/(float)mesh.positions().size()*100 << "%\n";
-	cout << "shadow done \n";
-
-}
 
 //-----------------------------------------------------------------------------
 //-----------------------------computePerVertexAO------------------------------
@@ -964,7 +784,6 @@ void computePerVertexAO (unsigned int samples, unsigned int radius) {
 			}
 			#endif
 		}
-		cout << aoResponses[i] << endl;
 	}
 	
 	cout << "ambient occlusion done \n";
@@ -1062,10 +881,6 @@ void key (unsigned char keyPressed, int x, int y) {
     case '9':
         mesh.simplifyAdaptive(14);  
         break;
-    case 's':	{
-        computePerVertexShadow (AO_RADIUS);
-        break;
-    }
     case 'z':
         mesh.subdivide ();
         colorResponses.resize(mesh.positions().size());

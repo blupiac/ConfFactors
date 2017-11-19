@@ -44,6 +44,7 @@ public:
     inline const std::vector<Vec3f> & normals () const { return m_normals; }
     inline std::vector<Triangle> triangles () { return m_triangles; }
     inline const std::vector<Triangle> & triangles () const { return m_triangles; }
+    inline  std::vector<float> & confFacts () { return m_confFacts; }
 
     /// Empty the positions, normals and triangles arrays.
     void clear ();
@@ -53,7 +54,8 @@ public:
 
 	void calculateConfFact ();
 	void calculateSignature ();
-    
+    float normalizeConf(unsigned int confIdx);
+
     /// Compute smooth per-vertex normals
     void recomputeNormals ();
     
@@ -74,14 +76,14 @@ public:
 private:
     std::vector<Vec3f> m_positions;
     std::vector<Vec3f> m_normals;
-    std::vector<float> m_confFact;
+    std::vector<float> m_confFacts;
     std::vector<Bin> signature;
     std::vector<Triangle> m_triangles;
     // TODO: send indexes instead of triangles, this way getTargetCurv can be optimized
     std::vector<std::vector<Triangle> > m_nneighbours;
     std::map <Edge, unsigned int> middle_points;
     std::map <std::pair<Triangle, unsigned int>, float> cotans;
-    float totalArea, totalCurv;
+    float totalArea, totalCurv, minConf, maxConf;
     
     float getGaussCurv(unsigned int i);
     float getAngle(Triangle tri, int pointIdx);
@@ -90,7 +92,9 @@ private:
     float getArea(Triangle tri);
 	float getLaplacian(unsigned int i);
     float getAMixed(unsigned int i);
+    float voronoiRegion(unsigned int ptIdx);
     bool isObtuse(Triangle t);
+    bool isBorder(unsigned int ptIdx);
 
 	void initializeSignature(int min, int max);
 	int getRandTri();
@@ -121,6 +125,7 @@ private:
     void triAveraging(unsigned int limit);
     void subdivideTri();
     void recomputeNN();
+
     std::vector<Triangle> intersectTriVect(std::vector<Triangle> v1, std::vector<Triangle> v2);
     
 };

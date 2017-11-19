@@ -62,7 +62,7 @@ void Mesh::loadOFF (const std::string & filename) {
     in >> offString >> sizeV >> sizeT >> tmp;
     m_positions.resize (sizeV);
     m_triangles.resize (sizeT);
-    m_confFact.resize (sizeV);
+    m_confFacts.resize (sizeV);
     m_nneighbours.resize(sizeV);
     totalArea = 0; totalCurv = 0;
     for (unsigned int i = 0; i < sizeV; i++)
@@ -102,6 +102,10 @@ void Mesh::loadOFF (const std::string & filename) {
 		totalArea += 0.5 * sqrt(v3[x]*v3[x] + v3[y]*v3[y] + v3[z]*v3[z]);
     }
     in.close ();
+
+	// fill confFactor vector
+    calculateConfFact ();
+
     centerAndScaleToUnit ();
     recomputeNormals ();
 }
@@ -115,6 +119,8 @@ void Mesh::loadOFF (const std::string & filename) {
 
 void Mesh::calculateConfFact () 
 {
+	minConf = 0;
+	maxConf = 10000000000;
 	for (unsigned int i = 0; i < m_positions.size (); i++) 
 	{
 		float gaussCurv = getGaussCurv(i);
@@ -122,8 +128,23 @@ void Mesh::calculateConfFact ()
 
 		float laplacian = getLaplacian(i);
 
-		m_confFact[i] = (targCurv - gaussCurv) / laplacian;
+		m_confFacts[i] = (targCurv - gaussCurv) / laplacian;
+
+		if(minConf > m_confFacts[i])
+		{
+			minConf = m_confFacts[i];
+		}
+		else if(maxConf < m_confFacts[i])
+		{
+			maxConf = m_confFacts[i];
+		}
+		std::cout << "targ: " << targCurv << " gauss: " << gaussCurv << " laplacian: " << laplacian << " confFact: " << m_confFacts[i] << std::endl;
 	}
+}
+
+float Mesh::normalizeConf(unsigned int confIdx)
+{
+	return (m_confFacts[confIdx] - minConf) / (maxConf - minConf);
 }
 
 float Mesh::getGaussCurv(unsigned int pointIdx)
@@ -138,24 +159,45 @@ float Mesh::getGaussCurv(unsigned int pointIdx)
 	}
 
 	// interior
-	if(neighbours.size() == 6)
+	if(!isBorder(pointIdx))
 	{
 		curv = 2 * M_PI - totalAngle;
 	}
 	// edge
-	else if(neighbours.size() == 3)
-	{
-		curv = M_PI - totalAngle;
-	}
-	// how did this point get here?
 	else
 	{
-		std::cout << "Point " << pointIdx << " has an unsupported number of neighbours." << std::endl;
-		return 0;
+		curv = M_PI - totalAngle;
 	}
 
 	totalCurv += curv;
 	return curv;
+}
+
+bool Mesh::isBorder(unsigned int ptIdx)
+{
+	std::set<unsigned int> neighPoint = getVoisins(m_nneighbours[ptIdx], ptIdx);
+
+	std::set<unsigned int>::iterator ptIt;
+	for (ptIt = neighPoint.begin(); ptIt != neighPoint.end(); ++ptIt)
+	{
+		unsigned int occur = 0;
+		std::vector<Triangle>::iterator triIt;
+		for (triIt = m_nneighbours[ptIdx].begin(); triIt != m_nneighbours[ptIdx].end(); ++triIt)
+		{
+			Triangle t = *triIt;
+			if(*ptIt == t[0] || *ptIt == t[1] || *ptIt == t[2])
+			{
+				occur++;
+			}
+		}
+
+		if(occur < 2)
+		{
+			return true; 
+		}
+	}
+
+	return false;
 }
 
 // get angle between 3 points in a 3d space
@@ -314,11 +356,74 @@ float Mesh::getLaplacian(unsigned int i)
 
 float Mesh::getAMixed(unsigned int i)
 {
-	return 0;
+	std::vector<Triangle> tris = m_nneighbours[i];
+	float mixedArea = 0;
+	float voronA = voronoiRegion(i);
+
+	std::vector<Triangle>::iterator triIt;
+	for (triIt = tris.begin(); triIt != tris.end(); ++triIt)
+	{
+		if(isObtuse(*triIt))
+		{
+			mixedArea += voronA;
+		}
+		else
+		{
+			if(getAngle(*triIt, i) > M_PI * 0.5)
+			{
+				mixedArea += getArea(*triIt) / 2.0;
+			}
+			else
+			{
+				mixedArea += getArea(*triIt) / 4.0;
+			}
+		}
+	}
+
+	return mixedArea;
+}
+
+float Mesh::voronoiRegion(unsigned int ptIdx)
+{
+	// get 1-neighborhood points
+	std::set<unsigned int> neighPoint = getVoisins(m_nneighbours[ptIdx], ptIdx);
+
+	float sumCotDist = 0;
+
+	std::set<unsigned int>::iterator ptIt;
+	for (ptIt = neighPoint.begin(); ptIt != neighPoint.end(); ++ptIt)
+	{
+		float cots = 0;
+
+		// get 2 triangles that contain main point plus the one of this iteration
+		std::vector<Triangle> triContain = containPoint(*ptIt, m_nneighbours[ptIdx]);
+		
+		// calculate cot on both angles wanted (alpha and betha on p9 illustration on the link)
+		std::vector<Triangle>::iterator triIt;
+		for (triIt = triContain.begin(); triIt != triContain.end(); ++triIt)
+		{
+			float cot = cotan(ptIdx, *ptIt, *triIt);
+			if(!std::isnan(cot) && cot < pow(10,3))
+				cots += cot;
+		}
+
+		float d = dist(m_positions[ptIdx], m_positions[*ptIt]);
+		sumCotDist += cots * d * d;
+	}
+
+	return sumCotDist;
 }
 
 bool Mesh::isObtuse(Triangle t)
 {
+	// for each point, see if angle is obtuse
+	for(unsigned int i = 0; i < 3; i++) 
+	{
+		if(getAngle(t, t[i]) > M_PI * 0.5)
+		{
+			return true;
+		}
+	}
 	return false;
 }
 
@@ -343,7 +448,7 @@ void Mesh::calculateSignature ()
 
 	for (unsigned int i = 0; i < 5 * m_positions.size (); i++) 
 	{
-		incrSignature(m_confFact[i]);
+		incrSignature(m_confFacts[i]);
 	}
 }
 
