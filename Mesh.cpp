@@ -119,8 +119,8 @@ void Mesh::loadOFF (const std::string & filename) {
 
 void Mesh::calculateConfFact () 
 {
-	minConf = 0;
-	maxConf = 10000000000;
+	minConf = 10000000000;
+	maxConf = -10000000000;
 	for (unsigned int i = 0; i < m_positions.size (); i++) 
 	{
 		float gaussCurv = getGaussCurv(i);
@@ -132,18 +132,23 @@ void Mesh::calculateConfFact ()
 
 		if(minConf > m_confFacts[i])
 		{
-			minConf = m_confFacts[i];
+			minConf = m_confFacts[i]; std::cout << "!!!!MIN!!!!!" << std::endl;
+			std::cout << "targ: " << targCurv << " gauss: " << gaussCurv << " laplacian: " << laplacian << " confFact: " << m_confFacts[i] << std::endl;
 		}
 		else if(maxConf < m_confFacts[i])
 		{
-			maxConf = m_confFacts[i];
+			maxConf = m_confFacts[i]; std::cout << "!!!!MAX!!!!!" << std::endl;
+			std::cout << "targ: " << targCurv << " gauss: " << gaussCurv << " laplacian: " << laplacian << " confFact: " << m_confFacts[i] << std::endl;
 		}
-		std::cout << "targ: " << targCurv << " gauss: " << gaussCurv << " laplacian: " << laplacian << " confFact: " << m_confFacts[i] << std::endl;
+		//std::cout << "targ: " << targCurv << " gauss: " << gaussCurv << " laplacian: " << laplacian << " confFact: " << m_confFacts[i] << std::endl;
 	}
 }
 
 float Mesh::normalizeConf(unsigned int confIdx)
 {
+	std::cout << "this conf: " << m_confFacts[confIdx] << " min conf: " << minConf << " max conf: " << maxConf << std::endl;
+	std::cout << "normalized: " << (m_confFacts[confIdx] - minConf) / (maxConf - minConf) << std::endl;
+	
 	return (m_confFacts[confIdx] - minConf) / (maxConf - minConf);
 }
 

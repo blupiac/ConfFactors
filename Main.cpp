@@ -727,9 +727,10 @@ void updatePerVertexColorResponse () {
 
     for (unsigned int i = 0; i < colorResponses.size (); i++)
     {
+    	//std::cout << mesh.normalizeConf(i) << std::endl;
 		colorResponses[i] = Vec4f(mesh.normalizeConf(i) * aoResponses[i],
-								aoResponses[i],
-								aoResponses[i],0.0);
+								mesh.normalizeConf(i) * aoResponses[i],
+								mesh.normalizeConf(i) * aoResponses[i],0.0);
     }
 }
 
