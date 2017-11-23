@@ -34,14 +34,14 @@ using namespace std;
 //#define USE_BVH
 //#define USE_NPR
 
-#define BW
+
 //#define GRADIENT
 #define DEBUG_LAP
 //#define DEBUG_GAUSS
 
 static const unsigned int DEFAULT_SCREENWIDTH = 1024;
 static const unsigned int DEFAULT_SCREENHEIGHT = 768;
-static const string DEFAULT_MESH_FILE ("models/rhino.off");
+static const string DEFAULT_MESH_FILE ("models/laurent.off");
 
 // Rayons envoyes en AO, et portee maximale pour une intersection
 static const unsigned int AO_SAMPLES = 10;
@@ -72,11 +72,12 @@ static Mesh mesh;
 GLProgram * glProgram;
 GLuint defaultShader;
 
-Vec3f red = Vec3f(0xFF, 0x00, 0x00);
-Vec3f yellow = Vec3f(0xFF, 0xFF, 0x00);
-Vec3f green = Vec3f(0x00, 0xFF, 0x00);
+Vec3f red = Vec3f(0xFF, 0x41, 0x36);
+Vec3f yellow = Vec3f(0xFF, 0xDC, 0x00);
+Vec3f green = Vec3f(0x2E, 0xCC, 0x40);
 Vec3f blue = Vec3f(0x00, 0x00, 0xFF);
-Vec3f indigo = Vec3f(0x4B, 0x00, 0x82);
+Vec3f indigo = Vec3f(0x00, 0x1F, 0x3F);
+Vec3f purple = Vec3f(0xB1, 0x0D, 0xC9);
 
 //-----------------------------------------------------------------------------
 //------------------------------LightSource------------------------------------
@@ -763,31 +764,34 @@ void updatePerVertexColorResponse () {
 		#endif
 
 		#ifdef GRADIENT
+		Vec3f resCol;
+
 		if(response < 0.2)
 		{
-			Vec3f resCol = colorGradient(red, yellow, (response - 0.0) * 5);
-			colorResponses[i] = Vec4f(resCol[x] , resCol[y] , resCol[z] , 0.0);
+			resCol = colorGradient(red, yellow, (response - 0.0) * 5);
+			colorResponses[i] = Vec4f(resCol[r] , resCol[g] , resCol[b] , 0.0);
 		}
 		else if(response < 0.4)
 		{
-			Vec3f resCol = colorGradient(yellow, green, (response - 0.0) * 5);
-			colorResponses[i] = Vec4f(resCol[x] , resCol[y] , resCol[z] , 0.0);
+			resCol = colorGradient(yellow, green, (response - 0.2) * 5);
+			colorResponses[i] = Vec4f(resCol[r] , resCol[g] , resCol[b] , 0.0);
 		}
 		else if(response < 0.6)
 		{
-			Vec3f resCol = colorGradient(green, blue, (response - 0.0) * 5);
-			colorResponses[i] = Vec4f(resCol[x] , resCol[y] , resCol[z] , 0.0);
+			resCol = colorGradient(green, blue, (response - 0.4) * 5);
+			colorResponses[i] = Vec4f(resCol[r] , resCol[g] , resCol[b] , 0.0);
 		}
 		else if(response < 0.8)
 		{
-			Vec3f resCol = colorGradient(blue, indigo, (response - 0.0) * 5);
-			colorResponses[i] = Vec4f(resCol[x] , resCol[y] , resCol[z] , 0.0);
+			resCol = colorGradient(blue, indigo, (response - 0.6) * 5);
+			colorResponses[i] = Vec4f(resCol[r] , resCol[g] , resCol[b] , 0.0);
 		}
 		else
 		{
-			Vec3f resCol = colorGradient(indigo, red, (response - 0.0) * 5);
-			colorResponses[i] = Vec4f(resCol[x] , resCol[y] , resCol[z] , 0.0);
+			resCol = colorGradient(indigo, purple, (response - 0.8) * 5);
+			colorResponses[i] = Vec4f(resCol[r] , resCol[g] , resCol[b] , 0.0);
 		}
+		std::cout << "response: " << response <<  " color given: " << resCol << std::endl;
 		#else
 		colorResponses[i] = Vec4f(response * aoResponses[i],
 								response * aoResponses[i],
