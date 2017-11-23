@@ -34,9 +34,12 @@ using namespace std;
 //#define USE_BVH
 //#define USE_NPR
 
+#define DEBUG_LAP
+//#define DEBUG_GAUSS
+
 static const unsigned int DEFAULT_SCREENWIDTH = 1024;
 static const unsigned int DEFAULT_SCREENHEIGHT = 768;
-static const string DEFAULT_MESH_FILE ("models/rhino.off");
+static const string DEFAULT_MESH_FILE ("models/tweety.off");
 
 // Rayons envoyes en AO, et portee maximale pour une intersection
 static const unsigned int AO_SAMPLES = 10;
@@ -727,10 +730,22 @@ void updatePerVertexColorResponse () {
 
     for (unsigned int i = 0; i < colorResponses.size (); i++)
     {
+    	#ifdef DEBUG_LAP	
+    	//std::cout << mesh.normalizeLaplacian(i) << std::endl;
+    	colorResponses[i] = Vec4f(mesh.normalizeLaplacian(i) * aoResponses[i],
+								mesh.normalizeLaplacian(i) * aoResponses[i],
+								mesh.normalizeLaplacian(i) * aoResponses[i],0.0);
+    	#elif defined(DEBUG_GAUSS)
+    	//std::cout << mesh.normalizeConf(i) << std::endl;
+    	colorResponses[i] = Vec4f(mesh.normalizeGausscurv(i) * aoResponses[i],
+								mesh.normalizeGausscurv(i) * aoResponses[i],
+								mesh.normalizeGausscurv(i) * aoResponses[i],0.0);
+    	#else
     	//std::cout << mesh.normalizeConf(i) << std::endl;
 		colorResponses[i] = Vec4f(mesh.normalizeConf(i) * aoResponses[i],
 								mesh.normalizeConf(i) * aoResponses[i],
 								mesh.normalizeConf(i) * aoResponses[i],0.0);
+		#endif
     }
 }
 

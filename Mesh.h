@@ -18,6 +18,8 @@
 #include "Vec3.h"
 #include "Triangle.h"
 
+#define DEBUG
+
 struct Edge {
  unsigned int i , j;
  Edge(unsigned int a , unsigned int b) : i(std::min(a,b)) , j(std::max(a,b)) {}
@@ -55,6 +57,10 @@ public:
 	void calculateConfFact ();
 	void calculateSignature ();
     float normalizeConf(unsigned int confIdx);
+    #ifdef DEBUG
+    float normalizeLaplacian(unsigned int lapIdx);
+    float normalizeGausscurv(unsigned int gaussIdx);
+    #endif
 
     /// Compute smooth per-vertex normals
     void recomputeNormals ();
@@ -77,6 +83,10 @@ private:
     std::vector<Vec3f> m_positions;
     std::vector<Vec3f> m_normals;
     std::vector<float> m_confFacts;
+    #ifdef DEBUG
+    std::vector<float> m_gausscurv;
+    std::vector<float> m_laplacian;
+    #endif
     std::vector<Bin> signature;
     std::vector<Triangle> m_triangles;
     // TODO: send indexes instead of triangles, this way getTargetCurv can be optimized
@@ -84,6 +94,9 @@ private:
     std::map <Edge, unsigned int> middle_points;
     std::map <std::pair<Triangle, unsigned int>, float> cotans;
     float totalArea, totalCurv, minConf, maxConf;
+    #ifdef DEBUG
+    float minLap, maxLap, minGauss, maxGauss;
+    #endif
     
     float getGaussCurv(unsigned int i);
     float getAngle(Triangle tri, int pointIdx);

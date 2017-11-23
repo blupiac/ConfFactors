@@ -16,6 +16,9 @@
 #include <string>
 #include <algorithm>
 #include <cmath>
+#include <assert.h>
+
+#define DEBUG
 
 #define MED_X min_x + (max_x - min_x)/2
 #define MED_Y min_y + (max_y - min_y)/2
@@ -63,6 +66,10 @@ void Mesh::loadOFF (const std::string & filename) {
     m_positions.resize (sizeV);
     m_triangles.resize (sizeT);
     m_confFacts.resize (sizeV);
+    #ifdef DEBUG
+    m_gausscurv.resize (sizeV);
+    m_laplacian.resize (sizeV);
+    #endif
     m_nneighbours.resize(sizeV);
     totalArea = 0; totalCurv = 0;
     for (unsigned int i = 0; i < sizeV; i++)
@@ -121,6 +128,14 @@ void Mesh::calculateConfFact ()
 {
 	minConf = 10000000000;
 	maxConf = -10000000000;
+
+	#ifdef DEBUG
+	minGauss = 10000000000;
+	maxGauss = -10000000000;
+	minLap = 10000000000;
+	maxLap = -10000000000;
+	#endif
+
 	for (unsigned int i = 0; i < m_positions.size (); i++) 
 	{
 		float gaussCurv = getGaussCurv(i);
@@ -128,19 +143,24 @@ void Mesh::calculateConfFact ()
 
 		float laplacian = getLaplacian(i);
 
+		#ifdef DEBUG
+		m_laplacian[i] = laplacian;
+		m_gausscurv[i] = gaussCurv;
+		#endif
+
 		m_confFacts[i] = (targCurv - gaussCurv) / laplacian;
 
 		if(minConf > m_confFacts[i])
 		{
 			minConf = m_confFacts[i]; std::cout << "!!!!MIN!!!!!" << std::endl;
-			std::cout << "targ: " << targCurv << " gauss: " << gaussCurv << " laplacian: " << laplacian << " confFact: " << m_confFacts[i] << std::endl;
+			//std::cout << "targ: " << targCurv << " gauss: " << gaussCurv << " laplacian: " << laplacian << " confFact: " << m_confFacts[i] << std::endl;
 		}
-		else if(maxConf < m_confFacts[i])
+		if(maxConf < m_confFacts[i])
 		{
 			maxConf = m_confFacts[i]; std::cout << "!!!!MAX!!!!!" << std::endl;
-			std::cout << "targ: " << targCurv << " gauss: " << gaussCurv << " laplacian: " << laplacian << " confFact: " << m_confFacts[i] << std::endl;
+			//std::cout << "targ: " << targCurv << " gauss: " << gaussCurv << " laplacian: " << laplacian << " confFact: " << m_confFacts[i] << std::endl;
 		}
-		//std::cout << "targ: " << targCurv << " gauss: " << gaussCurv << " laplacian: " << laplacian << " confFact: " << m_confFacts[i] << std::endl;
+		std::cout << "targ: " << targCurv << " gauss: " << gaussCurv << " laplacian: " << laplacian << " confFact: " << m_confFacts[i] << std::endl;
 	}
 }
 
@@ -152,11 +172,25 @@ float Mesh::normalizeConf(unsigned int confIdx)
 	return (m_confFacts[confIdx] - minConf) / (maxConf - minConf);
 }
 
+#ifdef DEBUG
+
+float Mesh::normalizeLaplacian(unsigned int lapIdx)
+{	
+	return (m_laplacian[lapIdx] - minLap) / (maxLap - minLap);
+}
+
+float Mesh::normalizeGausscurv(unsigned int gaussIdx)
+{
+	return (m_gausscurv[gaussIdx] - minGauss) / (maxGauss - minGauss);
+}
+
+#endif
+
 float Mesh::getGaussCurv(unsigned int pointIdx)
 {
 	std::vector<Triangle> neighbours = m_nneighbours[pointIdx];
-	float curv;
 	float totalAngle = 0;
+	float curv;
 
 	for(unsigned int i = 0; i < neighbours.size(); i++)
 	{
@@ -174,7 +208,19 @@ float Mesh::getGaussCurv(unsigned int pointIdx)
 		curv = M_PI - totalAngle;
 	}
 
-	totalCurv += curv;
+	#ifdef DEBUG
+	m_gausscurv[pointIdx] = curv;
+
+	if(minGauss > curv)
+	{
+		minGauss = curv; 
+	}
+	if(maxGauss < curv)
+	{
+		maxGauss = curv;
+	}
+	#endif
+
 	return curv;
 }
 
@@ -327,6 +373,9 @@ float Mesh::getArea(Triangle tri)
 // http://www.geometry.caltech.edu/pubs/DMSB_III.pdf
 // p9-10
 
+// sparse matrix implementation: http://ddg.cs.columbia.edu/SGP2014/LaplaceBeltrami.pdf
+// @ p 136 - 142
+
 float Mesh::getLaplacian(unsigned int i)
 {
 	float AMixed = getAMixed(i);
@@ -355,6 +404,19 @@ float Mesh::getLaplacian(unsigned int i)
 
 		sumCotDist += cots * dist(m_positions[i], m_positions[*ptIt]);
 	}
+
+	#ifdef DEBUG
+	m_laplacian[i] = 0.5 * AMixed * sumCotDist;
+
+	if(minLap > m_laplacian[i])
+	{
+		minLap = m_laplacian[i]; 
+	}
+	if(maxLap < m_laplacian[i])
+	{
+		maxLap = m_laplacian[i];
+	}
+	#endif
 
 	return 0.5 * AMixed * sumCotDist;
 }
@@ -403,6 +465,8 @@ float Mesh::voronoiRegion(unsigned int ptIdx)
 		// get 2 triangles that contain main point plus the one of this iteration
 		std::vector<Triangle> triContain = containPoint(*ptIt, m_nneighbours[ptIdx]);
 		
+		assert (triContain.size() == 2);
+
 		// calculate cot on both angles wanted (alpha and betha on p9 illustration on the link)
 		std::vector<Triangle>::iterator triIt;
 		for (triIt = triContain.begin(); triIt != triContain.end(); ++triIt)
