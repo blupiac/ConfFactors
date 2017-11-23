@@ -406,7 +406,7 @@ float Mesh::getLaplacian(unsigned int i)
 	}
 
 	#ifdef DEBUG
-	m_laplacian[i] = 0.5 * AMixed * sumCotDist;
+	m_laplacian[i] = sumCotDist / (2 * AMixed);
 
 	if(minLap > m_laplacian[i])
 	{
@@ -418,7 +418,7 @@ float Mesh::getLaplacian(unsigned int i)
 	}
 	#endif
 
-	return 0.5 * AMixed * sumCotDist;
+	return sumCotDist / (2 * AMixed);
 }
 
 float Mesh::getAMixed(unsigned int i)
@@ -465,7 +465,7 @@ float Mesh::voronoiRegion(unsigned int ptIdx)
 		// get 2 triangles that contain main point plus the one of this iteration
 		std::vector<Triangle> triContain = containPoint(*ptIt, m_nneighbours[ptIdx]);
 		
-		assert (triContain.size() == 2);
+		//assert (triContain.size() == 2);
 
 		// calculate cot on both angles wanted (alpha and betha on p9 illustration on the link)
 		std::vector<Triangle>::iterator triIt;
@@ -480,7 +480,7 @@ float Mesh::voronoiRegion(unsigned int ptIdx)
 		sumCotDist += cots * d * d;
 	}
 
-	return sumCotDist;
+	return sumCotDist / 8;
 }
 
 bool Mesh::isObtuse(Triangle t)
