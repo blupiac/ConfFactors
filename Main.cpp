@@ -34,7 +34,9 @@ using namespace std;
 //#define USE_BVH
 //#define USE_NPR
 
-//#define DEBUG_LAP
+#define BW
+//#define GRADIENT
+#define DEBUG_LAP
 //#define DEBUG_GAUSS
 
 static const unsigned int DEFAULT_SCREENWIDTH = 1024;
@@ -69,6 +71,12 @@ static Camera camera;
 static Mesh mesh;
 GLProgram * glProgram;
 GLuint defaultShader;
+
+Vec3f red = Vec3f(0xFF, 0x00, 0x00);
+Vec3f yellow = Vec3f(0xFF, 0xFF, 0x00);
+Vec3f green = Vec3f(0x00, 0xFF, 0x00);
+Vec3f blue = Vec3f(0x00, 0x00, 0xFF);
+Vec3f indigo = Vec3f(0x4B, 0x00, 0x82);
 
 //-----------------------------------------------------------------------------
 //------------------------------LightSource------------------------------------
@@ -658,6 +666,7 @@ void init (const char * modelFilename) {
    	#endif
 
    	#endif
+
 }
 
 // Calcule attenuation de la lumiere
@@ -721,10 +730,22 @@ float ddx (Vec3f n, Vec3f wh, Vec3f wi, Vec3f w0) {
 
 }
 
-
 //-----------------------------------------------------------------------------
 //---------------------updatePerVertexColorResponse----------------------------
 //-----------------------------------------------------------------------------
+
+// https://stackoverflow.com/questions/21835739/smooth-color-transition-algorithm
+
+Vec3f colorGradient(Vec3f col1, Vec3f col2, float val)
+{
+	Vec3f result;
+
+	result[r] = (col1[r] * (1 - val)) + (col2[r] * val);
+	result[g] = (col1[g] * (1 - val)) + (col2[g] * val);
+	result[b] = (col1[b] * (1 - val)) + (col2[b] * val);
+
+	return result;
+}
 
 void updatePerVertexColorResponse () {
 
@@ -732,19 +753,45 @@ void updatePerVertexColorResponse () {
     {
     	#ifdef DEBUG_LAP	
     	//std::cout << mesh.normalizeLaplacian(i) << std::endl;
-    	colorResponses[i] = Vec4f(mesh.normalizeLaplacian(i) * aoResponses[i],
-								mesh.normalizeLaplacian(i) * aoResponses[i],
-								mesh.normalizeLaplacian(i) * aoResponses[i],0.0);
+    	float response = mesh.normalizeLaplacian(i);
     	#elif defined(DEBUG_GAUSS)
     	//std::cout << mesh.normalizeConf(i) << std::endl;
-    	colorResponses[i] = Vec4f(mesh.normalizeGausscurv(i) * aoResponses[i],
-								mesh.normalizeGausscurv(i) * aoResponses[i],
-								mesh.normalizeGausscurv(i) * aoResponses[i],0.0);
+    	float response = mesh.normalizeGausscurv(i);
     	#else
     	//std::cout << mesh.normalizeConf(i) << std::endl;
-		colorResponses[i] = Vec4f(mesh.normalizeConf(i) * aoResponses[i],
-								mesh.normalizeConf(i) * aoResponses[i],
-								mesh.normalizeConf(i) * aoResponses[i],0.0);
+		float response = mesh.normalizeConf(i);
+		#endif
+
+		#ifdef GRADIENT
+		if(response < 0.2)
+		{
+			Vec3f resCol = colorGradient(red, yellow, (response - 0.0) * 5);
+			colorResponses[i] = Vec4f(resCol[x] , resCol[y] , resCol[z] , 0.0);
+		}
+		else if(response < 0.4)
+		{
+			Vec3f resCol = colorGradient(yellow, green, (response - 0.0) * 5);
+			colorResponses[i] = Vec4f(resCol[x] , resCol[y] , resCol[z] , 0.0);
+		}
+		else if(response < 0.6)
+		{
+			Vec3f resCol = colorGradient(green, blue, (response - 0.0) * 5);
+			colorResponses[i] = Vec4f(resCol[x] , resCol[y] , resCol[z] , 0.0);
+		}
+		else if(response < 0.8)
+		{
+			Vec3f resCol = colorGradient(blue, indigo, (response - 0.0) * 5);
+			colorResponses[i] = Vec4f(resCol[x] , resCol[y] , resCol[z] , 0.0);
+		}
+		else
+		{
+			Vec3f resCol = colorGradient(indigo, red, (response - 0.0) * 5);
+			colorResponses[i] = Vec4f(resCol[x] , resCol[y] , resCol[z] , 0.0);
+		}
+		#else
+		colorResponses[i] = Vec4f(response * aoResponses[i],
+								response * aoResponses[i],
+								response * aoResponses[i],0.0);
 		#endif
     }
 }

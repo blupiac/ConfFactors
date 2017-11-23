@@ -166,8 +166,8 @@ void Mesh::calculateConfFact ()
 
 float Mesh::normalizeConf(unsigned int confIdx)
 {
-	std::cout << "this conf: " << m_confFacts[confIdx] << " min conf: " << minConf << " max conf: " << maxConf << std::endl;
-	std::cout << "normalized: " << (m_confFacts[confIdx] - minConf) / (maxConf - minConf) << std::endl;
+	//std::cout << "this conf: " << m_confFacts[confIdx] << " min conf: " << minConf << " max conf: " << maxConf << std::endl;
+	//std::cout << "normalized: " << (m_confFacts[confIdx] - minConf) / (maxConf - minConf) << std::endl;
 	
 	return (m_confFacts[confIdx] - minConf) / (maxConf - minConf);
 }
