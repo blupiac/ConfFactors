@@ -106,6 +106,7 @@ private:
 	float getLaplacian(unsigned int i);
     float getAMixed(unsigned int i);
     float voronoiRegion(unsigned int ptIdx);
+    float voronoiArea(unsigned int ptIdx, Triangle t);
     bool isObtuse(Triangle t);
     bool isBorder(unsigned int ptIdx);
 

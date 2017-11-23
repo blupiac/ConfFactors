@@ -73,7 +73,9 @@ void Mesh::loadOFF (const std::string & filename) {
     m_nneighbours.resize(sizeV);
     totalArea = 0; totalCurv = 0;
     for (unsigned int i = 0; i < sizeV; i++)
+    {
         in >> m_positions[i];
+    }
     int s;
     for (unsigned int i = 0; i < sizeT; i++) {
         in >> s;
@@ -109,6 +111,12 @@ void Mesh::loadOFF (const std::string & filename) {
 		totalArea += 0.5 * sqrt(v3[x]*v3[x] + v3[y]*v3[y] + v3[z]*v3[z]);
     }
     in.close ();
+
+    // calculate total gauss curv, maybe fill a vector?
+    for (unsigned int i = 0; i < sizeV; i++)
+    {
+        totalCurv += getGaussCurv(i);
+    }
 
 	// fill confFactor vector
     calculateConfFact ();
@@ -152,12 +160,12 @@ void Mesh::calculateConfFact ()
 
 		if(minConf > m_confFacts[i])
 		{
-			minConf = m_confFacts[i]; std::cout << "!!!!MIN!!!!!" << std::endl;
+			minConf = m_confFacts[i];
 			//std::cout << "targ: " << targCurv << " gauss: " << gaussCurv << " laplacian: " << laplacian << " confFact: " << m_confFacts[i] << std::endl;
 		}
 		if(maxConf < m_confFacts[i])
 		{
-			maxConf = m_confFacts[i]; std::cout << "!!!!MAX!!!!!" << std::endl;
+			maxConf = m_confFacts[i];
 			//std::cout << "targ: " << targCurv << " gauss: " << gaussCurv << " laplacian: " << laplacian << " confFact: " << m_confFacts[i] << std::endl;
 		}
 		std::cout << "targ: " << targCurv << " gauss: " << gaussCurv << " laplacian: " << laplacian << " confFact: " << m_confFacts[i] << std::endl;
@@ -318,7 +326,7 @@ float Mesh::getTargetCurv(unsigned int i)
 
 	for(unsigned int i = 0; i < tris.size(); i++)
 	{
-		area += getArea(tris[i]);
+		area += getArea(tris[i]) / 3;
 	}
 
 	return totalCurv * area / totalArea;
@@ -425,14 +433,13 @@ float Mesh::getAMixed(unsigned int i)
 {
 	std::vector<Triangle> tris = m_nneighbours[i];
 	float mixedArea = 0;
-	float voronA = voronoiRegion(i);
 
 	std::vector<Triangle>::iterator triIt;
 	for (triIt = tris.begin(); triIt != tris.end(); ++triIt)
 	{
 		if(isObtuse(*triIt))
 		{
-			mixedArea += voronA;
+			mixedArea += voronoiArea(i, *triIt) ;
 		}
 		else
 		{
@@ -472,7 +479,7 @@ float Mesh::voronoiRegion(unsigned int ptIdx)
 		for (triIt = triContain.begin(); triIt != triContain.end(); ++triIt)
 		{
 			float cot = cotan(ptIdx, *ptIt, *triIt);
-			if(!std::isnan(cot) && cot < pow(10,3))
+			if(!std::isnan(cot) && cot < 1000)
 				cots += cot;
 		}
 
@@ -481,6 +488,32 @@ float Mesh::voronoiRegion(unsigned int ptIdx)
 	}
 
 	return sumCotDist / 8;
+}
+
+float Mesh::voronoiArea(unsigned int ptIdx, Triangle t)
+{
+	float vArea = 0;
+
+	if(t[0] == ptIdx)
+	{
+		return dist(m_positions[ptIdx], m_positions[t[1]]) * dist(m_positions[ptIdx], m_positions[t[1]]) * cotan(ptIdx, t[1], t) +
+				 dist(m_positions[ptIdx], m_positions[t[2]]) * dist(m_positions[ptIdx], m_positions[t[2]]) * cotan(ptIdx, t[2], t);
+	}
+	else if(t[1] == ptIdx)
+	{
+		return dist(m_positions[ptIdx], m_positions[t[1]]) * dist(m_positions[ptIdx], m_positions[t[1]]) * cotan(ptIdx, t[1], t) +
+				 dist(m_positions[ptIdx], m_positions[t[2]]) * dist(m_positions[ptIdx], m_positions[t[2]]) * cotan(ptIdx, t[2], t);	}
+	else if(t[2] == ptIdx)
+	{
+		return dist(m_positions[ptIdx], m_positions[t[1]]) * dist(m_positions[ptIdx], m_positions[t[1]]) * cotan(ptIdx, t[1], t) +
+				 dist(m_positions[ptIdx], m_positions[t[2]]) * dist(m_positions[ptIdx], m_positions[t[2]]) * cotan(ptIdx, t[2], t);
+	}
+	else
+	{
+		std::cout << "Wrong pair of point and triangle for voronoiArea calculation" << std::endl;
+	}
+
+	return vArea;
 }
 
 bool Mesh::isObtuse(Triangle t)

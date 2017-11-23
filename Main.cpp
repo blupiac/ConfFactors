@@ -36,12 +36,12 @@ using namespace std;
 
 
 //#define GRADIENT
-#define DEBUG_LAP
+//#define DEBUG_LAP
 //#define DEBUG_GAUSS
 
 static const unsigned int DEFAULT_SCREENWIDTH = 1024;
 static const unsigned int DEFAULT_SCREENHEIGHT = 768;
-static const string DEFAULT_MESH_FILE ("models/laurent.off");
+static const string DEFAULT_MESH_FILE ("models/camel.off");
 
 // Rayons envoyes en AO, et portee maximale pour une intersection
 static const unsigned int AO_SAMPLES = 10;
