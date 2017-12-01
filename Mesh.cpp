@@ -88,27 +88,8 @@ void Mesh::loadOFF (const std::string & filename) {
         {
             m_nneighbours[m_triangles[i][j]].push_back(m_triangles[i]);
         }
-
-        // should fill area vector
-        // https://www.opengl.org/discussion_boards/showthread.php/159771-How-can-I-find-the-area-of-a-3D-triangle
-        // uses a sqrt, might look for smth else later
-
-        //BA vector
-		Vec3f v1 = Vec3f(m_positions[m_triangles[i][1]][x] - m_positions[m_triangles[i][0]][x],
-					m_positions[m_triangles[i][1]][y] - m_positions[m_triangles[i][0]][y],
-					m_positions[m_triangles[i][1]][z] - m_positions[m_triangles[i][0]][z]);
-
-		//BC vector
-		Vec3f v2 = Vec3f(m_positions[m_triangles[i][2]][x] - m_positions[m_triangles[i][0]][x],
-					m_positions[m_triangles[i][2]][y] - m_positions[m_triangles[i][0]][y],
-					m_positions[m_triangles[i][2]][z] - m_positions[m_triangles[i][0]][z]);
-
-		//cross prod
-		Vec3f v3 = Vec3f(v1[y] * v2[z] - v1[z] * v2[y],
-						v1[z] * v2[x] - v1[x] * v2[z],
-						v1[x] * v2[y] - v1[y] * v2[x]);
-
-		totalArea += 0.5 * sqrt(v3[x]*v3[x] + v3[y]*v3[y] + v3[z]*v3[z]);
+        
+		totalArea += getArea(m_triangles[i]);
     }
     in.close ();
 
@@ -184,6 +165,9 @@ float Mesh::normalizeConf(unsigned int confIdx)
 
 float Mesh::normalizeLaplacian(unsigned int lapIdx)
 {	
+	//std::cout << "this lap: " << m_laplacian[lapIdx] << " min lap: " << minLap << " max lap: " << maxLap << std::endl;
+	//std::cout << "normalized: " << (m_laplacian[lapIdx] - minLap) / (maxLap - minLap) << std::endl;
+
 	return (m_laplacian[lapIdx] - minLap) / (maxLap - minLap);
 }
 
@@ -378,15 +362,9 @@ float Mesh::getArea(Triangle tri)
 	return 0.5 * sqrt(v3[x]*v3[x] + v3[y]*v3[y] + v3[z]*v3[z]);
 }
 
-// http://www.geometry.caltech.edu/pubs/DMSB_III.pdf
-// p9-10
-
-// sparse matrix implementation: http://ddg.cs.columbia.edu/SGP2014/LaplaceBeltrami.pdf
-// @ p 136 - 142
 
 float Mesh::getLaplacian(unsigned int i)
 {
-	float AMixed = getAMixed(i);
 
 	// get 1-neighborhood points
 	std::set<unsigned int> neighPoint = getVoisins(m_nneighbours[i], i);
@@ -407,14 +385,20 @@ float Mesh::getLaplacian(unsigned int i)
 		{
 			float cot = cotan(i, *ptIt, *triIt);
 			if(!std::isnan(cot) && cot < pow(10,3))
-				cots += cot;
+			{
+				cots += cot / 2.0;
+			}
+			else
+			{
+				std::cout << "nan cotan at point " << i << std::endl;
+			}
 		}
 
-		sumCotDist += cots * dist(m_positions[i], m_positions[*ptIt]);
+		sumCotDist += cots;
 	}
 
 	#ifdef DEBUG
-	m_laplacian[i] = sumCotDist / (2 * AMixed);
+	m_laplacian[i] = - sumCotDist;
 
 	if(minLap > m_laplacian[i])
 	{
@@ -426,7 +410,7 @@ float Mesh::getLaplacian(unsigned int i)
 	}
 	#endif
 
-	return sumCotDist / (2 * AMixed);
+	return - sumCotDist;
 }
 
 float Mesh::getAMixed(unsigned int i)
@@ -437,7 +421,7 @@ float Mesh::getAMixed(unsigned int i)
 	std::vector<Triangle>::iterator triIt;
 	for (triIt = tris.begin(); triIt != tris.end(); ++triIt)
 	{
-		if(isObtuse(*triIt))
+		if(!isObtuse(*triIt))
 		{
 			mixedArea += voronoiArea(i, *triIt) ;
 		}
@@ -487,7 +471,7 @@ float Mesh::voronoiRegion(unsigned int ptIdx)
 		sumCotDist += cots * d * d;
 	}
 
-	return sumCotDist / 8;
+	return sumCotDist / 8.0;
 }
 
 float Mesh::voronoiArea(unsigned int ptIdx, Triangle t)
@@ -502,7 +486,8 @@ float Mesh::voronoiArea(unsigned int ptIdx, Triangle t)
 	else if(t[1] == ptIdx)
 	{
 		return dist(m_positions[ptIdx], m_positions[t[1]]) * dist(m_positions[ptIdx], m_positions[t[1]]) * cotan(ptIdx, t[1], t) +
-				 dist(m_positions[ptIdx], m_positions[t[2]]) * dist(m_positions[ptIdx], m_positions[t[2]]) * cotan(ptIdx, t[2], t);	}
+				 dist(m_positions[ptIdx], m_positions[t[2]]) * dist(m_positions[ptIdx], m_positions[t[2]]) * cotan(ptIdx, t[2], t);	
+	}
 	else if(t[2] == ptIdx)
 	{
 		return dist(m_positions[ptIdx], m_positions[t[1]]) * dist(m_positions[ptIdx], m_positions[t[1]]) * cotan(ptIdx, t[1], t) +
