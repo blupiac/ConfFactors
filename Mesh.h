@@ -31,7 +31,8 @@ struct Edge {
 
 struct Bin 
 {
-	unsigned int occur, idx;
+	int idx;
+    float occur;
 };
 
 /// A Mesh class, storing a list of vertices and a list of triangles indexed over it.
@@ -83,6 +84,8 @@ private:
     std::vector<Vec3f> m_positions;
     std::vector<Vec3f> m_normals;
     std::vector<float> m_confFacts;
+    std::vector<float> m_areas;
+    std::vector<unsigned int> m_sortedAreasIdx;
     #ifdef DEBUG
     std::vector<float> m_gausscurv;
     std::vector<float> m_laplacian;
@@ -93,7 +96,7 @@ private:
     std::vector<std::vector<Triangle> > m_nneighbours;
     std::map <Edge, unsigned int> middle_points;
     std::map <std::pair<Triangle, unsigned int>, float> cotans;
-    float totalArea, totalCurv, minConf, maxConf;
+    float totalArea, totalCurv, totalConf, minConf, maxConf;
     #ifdef DEBUG
     float minLap, maxLap, minGauss, maxGauss;
     #endif
@@ -109,12 +112,14 @@ private:
     float voronoiArea(unsigned int ptIdx, Triangle t);
     bool isObtuse(Triangle t);
     bool isBorder(unsigned int ptIdx);
+    void purgeConf(float coef);
 
 	void initializeSignature(int min, int max);
+    void printSignature(std::vector<Bin> sig, unsigned int totalItems);
 	int getRandTri();
 	Vec3f getRandPoint(Triangle tri);
 	float getConfFactor(Vec3f point, unsigned int triIdx);
-	void incrSignature(float confFact);
+	void incrSignature(float confFact, float min, float max, int binMin, int binMax);
 
     void getMaxMin(float& max_x, float& max_y, float& max_z, float& min_x,
 				float& min_y, float& min_z);

@@ -65,13 +65,15 @@ void Mesh::loadOFF (const std::string & filename) {
     in >> offString >> sizeV >> sizeT >> tmp;
     m_positions.resize (sizeV);
     m_triangles.resize (sizeT);
+    m_areas.resize (sizeT);
+    m_sortedAreasIdx.resize (sizeT);
     m_confFacts.resize (sizeV);
     #ifdef DEBUG
     m_gausscurv.resize (sizeV);
     m_laplacian.resize (sizeV);
     #endif
     m_nneighbours.resize(sizeV);
-    totalArea = 0; totalCurv = 0;
+    totalArea = 0; totalCurv = 0; totalConf = 0;
     for (unsigned int i = 0; i < sizeV; i++)
     {
         in >> m_positions[i];
@@ -89,7 +91,10 @@ void Mesh::loadOFF (const std::string & filename) {
             m_nneighbours[m_triangles[i][j]].push_back(m_triangles[i]);
         }
         
-		totalArea += getArea(m_triangles[i]);
+        float area = getArea(m_triangles[i]);
+
+        m_areas[i] = area;
+		totalArea += area;
     }
     in.close ();
 
@@ -99,8 +104,21 @@ void Mesh::loadOFF (const std::string & filename) {
         totalCurv += getGaussCurv(i);
     }
 
+    // sort area idx vector
+    std::size_t n(0);
+    std::generate(std::begin(m_sortedAreasIdx), std::end(m_sortedAreasIdx), [&]{ return n++; });
+
+    std::sort(  std::begin(m_sortedAreasIdx), 
+                std::end(m_sortedAreasIdx),
+                [&](int i1, int i2) { return m_areas[i1] < m_areas[i2]; } );
+
 	// fill confFactor vector
-    calculateConfFact ();
+    calculateConfFact();
+    calculateSignature();
+
+    #ifdef DEBUG
+    purgeConf(0.01);
+    #endif
 
     centerAndScaleToUnit ();
     recomputeNormals ();
@@ -139,6 +157,8 @@ void Mesh::calculateConfFact ()
 
 		m_confFacts[i] = (targCurv - gaussCurv) / laplacian;
 
+		totalConf += m_confFacts[i] / m_positions.size();
+
 		if(minConf > m_confFacts[i])
 		{
 			minConf = m_confFacts[i];
@@ -157,8 +177,30 @@ float Mesh::normalizeConf(unsigned int confIdx)
 {
 	//std::cout << "this conf: " << m_confFacts[confIdx] << " min conf: " << minConf << " max conf: " << maxConf << std::endl;
 	//std::cout << "normalized: " << (m_confFacts[confIdx] - minConf) / (maxConf - minConf) << std::endl;
-	
+
 	return (m_confFacts[confIdx] - minConf) / (maxConf - minConf);
+}
+
+void Mesh::purgeConf(float coef)
+{
+	// purge n% of the higher and lower results
+	float meanConf = totalConf / m_confFacts.size();
+
+	for(unsigned int i = 0 ; i < m_confFacts.size() ; i++)
+	{
+		if(m_confFacts[i] < (minConf * (1 - coef) + meanConf * coef ) ||
+			m_confFacts[i] > (maxConf * (1 - coef) + meanConf * coef ) )
+		{
+			m_confFacts[i] = meanConf;
+		}
+	}
+
+	auto result = std::minmax_element(m_confFacts.begin(), m_confFacts.end());
+
+	minConf = m_confFacts[result.first - m_confFacts.begin()];
+	maxConf = m_confFacts[result.second - m_confFacts.begin()];
+
+	//std::cout << minConf << " " << maxConf << std::endl;
 }
 
 #ifdef DEBUG
@@ -455,8 +497,6 @@ float Mesh::voronoiRegion(unsigned int ptIdx)
 
 		// get 2 triangles that contain main point plus the one of this iteration
 		std::vector<Triangle> triContain = containPoint(*ptIt, m_nneighbours[ptIdx]);
-		
-		//assert (triContain.size() == 2);
 
 		// calculate cot on both angles wanted (alpha and betha on p9 illustration on the link)
 		std::vector<Triangle>::iterator triIt;
@@ -523,37 +563,56 @@ bool Mesh::isObtuse(Triangle t)
 void Mesh::calculateSignature () 
 {
 	initializeSignature(-99, 100);
-
+/*
 	for (unsigned int i = 0; i < 5 * m_positions.size (); i++) 
 	{
 		int triangleIdx = getRandTri();
 		Vec3f randPoint = getRandPoint(m_triangles[triangleIdx]);
 		float randConfFactor = getConfFactor(randPoint, triangleIdx);
 
-		incrSignature(randConfFactor);
+		incrSignature(randConfFactor, minCOnf, maxConf, -99, 100);
+	}
+*/
+	for (unsigned int i = 0; i < m_positions.size (); i++) 
+	{
+		incrSignature(m_confFacts[i], minConf, maxConf, -99, 100);
 	}
 
-	for (unsigned int i = 0; i < 5 * m_positions.size (); i++) 
-	{
-		incrSignature(m_confFacts[i]);
-	}
+	printSignature(signature, m_positions.size());
 }
 
 void Mesh::initializeSignature(int min, int max)
 {
-	signature.resize (max - min);
+	signature.resize (max - min + 1);
 
 	for(unsigned int i = 0; i < signature.size(); i ++)
 	{
 		Bin b;
-		b.occur = 0;
+		b.occur = 0.0f;
 		b.idx = min + i;
 		signature[i] = b;
 	}
 }
 
+void Mesh::printSignature(std::vector<Bin> sig, unsigned int totalItems)
+{
+	for(unsigned int i = 0; i < signature.size(); i ++)
+	{
+		std::cout << "Bin " << sig[i].idx << ": " << sig[i].occur / (float) totalItems << " occurences: " << sig[i].occur << std::endl;
+	}
+}
+
 int Mesh::getRandTri()
 {
+	float r = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+	float randArea = r * totalArea;
+	unsigned int i = 0;
+
+	while((randArea - m_areas[m_sortedAreasIdx[i]])>= 0)
+	{
+		randArea -= m_areas[m_sortedAreasIdx[i]];
+		i++;
+	}
 	return 0;
 }
 
@@ -567,9 +626,14 @@ float Mesh::getConfFactor(Vec3f point, unsigned int triIdx)
 	return 0;
 }
 
-void Mesh::incrSignature(float confFact)
+void Mesh::incrSignature(float confFact, float min, float max, int binMin, int binMax)
 {
+	float normIdx = (confFact - min) / (max - min);
+	int equivBin = normIdx * (binMax - binMin);
 
+	std::cout << "confFact: " << confFact << " min: " << min << " max: " << max << " normIdx: " << normIdx << " equivBin: " << equivBin << std::endl;
+
+	signature[equivBin].occur += 1;
 }
 
 //-----------------------------------------------------------------------------

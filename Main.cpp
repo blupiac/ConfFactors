@@ -41,7 +41,7 @@ using namespace std;
 
 static const unsigned int DEFAULT_SCREENWIDTH = 1024;
 static const unsigned int DEFAULT_SCREENHEIGHT = 768;
-static const string DEFAULT_MESH_FILE ("models/olivier.off");
+static const string DEFAULT_MESH_FILE ("models/pierrot.off");
 
 // Rayons envoyes en AO, et portee maximale pour une intersection
 static const unsigned int AO_SAMPLES = 10;
