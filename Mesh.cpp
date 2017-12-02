@@ -12,6 +12,7 @@
 #include "Mesh.h"
 #include <iostream>
 #include <fstream>
+#include <fstream>
 #include <cstdlib>
 #include <string>
 #include <algorithm>
@@ -342,7 +343,7 @@ float Mesh::getAngle(Triangle tri, int pointIdx)
 
 	float res = v1norm[x] * v2norm[x] + v1norm[y] * v2norm[y] + v1norm[z] * v2norm[z];
 
-	return  acos(res);
+	return acos(res);
 }
 
 float Mesh::getTargetCurv(unsigned int i)
@@ -404,9 +405,13 @@ float Mesh::getArea(Triangle tri)
 	return 0.5 * sqrt(v3[x]*v3[x] + v3[y]*v3[y] + v3[z]*v3[z]);
 }
 
+// TODO: matrix implementation?
+//https://github.com/Sunwinds/3D-Geometric-Features/tree/master/ConformalFactor
 
+// using: http://www.geometry.caltech.edu/pubs/DMSB_III.pdf
 float Mesh::getLaplacian(unsigned int i)
 {
+	float AMixed = getAMixed(i);
 
 	// get 1-neighborhood points
 	std::set<unsigned int> neighPoint = getVoisins(m_nneighbours[i], i);
@@ -427,20 +432,14 @@ float Mesh::getLaplacian(unsigned int i)
 		{
 			float cot = cotan(i, *ptIt, *triIt);
 			if(!std::isnan(cot) && cot < pow(10,3))
-			{
-				cots += cot / 2.0;
-			}
-			else
-			{
-				std::cout << "nan cotan at point " << i << std::endl;
-			}
+				cots += cot;
 		}
 
-		sumCotDist += cots;
+		sumCotDist += cots * dist(m_positions[i], m_positions[*ptIt]);
 	}
 
 	#ifdef DEBUG
-	m_laplacian[i] = - sumCotDist;
+	m_laplacian[i] = sumCotDist / (2 * AMixed);
 
 	if(minLap > m_laplacian[i])
 	{
@@ -452,7 +451,7 @@ float Mesh::getLaplacian(unsigned int i)
 	}
 	#endif
 
-	return - sumCotDist;
+	return sumCotDist / (2 * AMixed);
 }
 
 float Mesh::getAMixed(unsigned int i)
@@ -596,10 +595,19 @@ void Mesh::initializeSignature(int min, int max)
 
 void Mesh::printSignature(std::vector<Bin> sig, unsigned int totalItems)
 {
+	ofstream outfile;
+    outfile.open ("output/confFact.csv");
+
+    outfile << "binNumber, occurence\n";
+
 	for(unsigned int i = 0; i < signature.size(); i ++)
 	{
-		std::cout << "Bin " << sig[i].idx << ": " << sig[i].occur / (float) totalItems << " occurences: " << sig[i].occur << std::endl;
+		float occurPercent = sig[i].occur / (float) totalItems;
+		outfile << sig[i].idx << ", " << occurPercent << "\n";
+		std::cout << "Bin " << sig[i].idx << ": " << occurPercent << " occurences: " << sig[i].occur << std::endl;
 	}
+
+	outfile.close();
 }
 
 int Mesh::getRandTri()
@@ -631,7 +639,7 @@ void Mesh::incrSignature(float confFact, float min, float max, int binMin, int b
 	float normIdx = (confFact - min) / (max - min);
 	int equivBin = normIdx * (binMax - binMin);
 
-	std::cout << "confFact: " << confFact << " min: " << min << " max: " << max << " normIdx: " << normIdx << " equivBin: " << equivBin << std::endl;
+	//std::cout << "confFact: " << confFact << " min: " << min << " max: " << max << " normIdx: " << normIdx << " equivBin: " << equivBin << std::endl;
 
 	signature[equivBin].occur += 1;
 }
