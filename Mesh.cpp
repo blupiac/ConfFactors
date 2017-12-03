@@ -134,14 +134,17 @@ void Mesh::loadOFF (const std::string & filename) {
 
 void Mesh::calculateConfFact () 
 {
-	minConf = 10000000000;
-	maxConf = -10000000000;
+	std::vector<float> m_gaussDiff;
+	m_gaussDiff.resize (m_positions.size ());
+
+	minConf = 1e10;
+	maxConf = -1e10;
 
 	#ifdef DEBUG
-	minGauss = 10000000000;
-	maxGauss = -10000000000;
-	minLap = 10000000000;
-	maxLap = -10000000000;
+	minGauss = 1e10;
+	maxGauss = -1e10;
+	minLap = 1e10;
+	maxLap = -1e10;
 	#endif
 
 	for (unsigned int i = 0; i < m_positions.size (); i++) 
@@ -149,29 +152,17 @@ void Mesh::calculateConfFact ()
 		float gaussCurv = getGaussCurv(i);
 		float targCurv = getTargetCurv(i);
 
-		float laplacian = getLaplacian(i);
-
-		#ifdef DEBUG
-		m_laplacian[i] = laplacian;
-		m_gausscurv[i] = gaussCurv;
-		#endif
-
-		m_confFacts[i] = (targCurv - gaussCurv) / laplacian;
-
-		totalConf += m_confFacts[i] / m_positions.size();
-
-		if(minConf > m_confFacts[i])
-		{
-			minConf = m_confFacts[i];
-			//std::cout << "targ: " << targCurv << " gauss: " << gaussCurv << " laplacian: " << laplacian << " confFact: " << m_confFacts[i] << std::endl;
-		}
-		if(maxConf < m_confFacts[i])
-		{
-			maxConf = m_confFacts[i];
-			//std::cout << "targ: " << targCurv << " gauss: " << gaussCurv << " laplacian: " << laplacian << " confFact: " << m_confFacts[i] << std::endl;
-		}
-		std::cout << "targ: " << targCurv << " gauss: " << gaussCurv << " laplacian: " << laplacian << " confFact: " << m_confFacts[i] << std::endl;
+		m_gaussDiff[i] = targCurv - gaussCurv;
 	}
+
+	Eigen::SparseMatrix<float> lapMatrix = getLapMatrix();
+
+	m_confFacts = solveConfFactor(m_gaussDiff, lapMatrix);
+
+	auto result = std::minmax_element(m_confFacts.begin(), m_confFacts.end());
+
+	minConf = m_confFacts[result.first - m_confFacts.begin()];
+	maxConf = m_confFacts[result.second - m_confFacts.begin()];
 }
 
 float Mesh::normalizeConf(unsigned int confIdx)
