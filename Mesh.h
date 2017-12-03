@@ -124,7 +124,7 @@ private:
     void printSignature(std::vector<Bin> sig, unsigned int totalItems);
 	int getRandTri();
 	Vec3f getRandPoint(Triangle tri);
-	float getConfFactor(Vec3f point, unsigned int triIdx);
+	float interpConfFactor(Vec3f point, unsigned int triIdx);
 	void incrSignature(float confFact, float min, float max, int binMin, int binMax);
 
     void getMaxMin(float& max_x, float& max_y, float& max_z, float& min_x,

@@ -630,16 +630,16 @@ std::vector<float> Mesh::solveConfFactor(std::vector<float> gaussDiff, Eigen::Sp
 void Mesh::calculateSignature () 
 {
 	initializeSignature(-99, 100);
-/*
+
 	for (unsigned int i = 0; i < 5 * m_positions.size (); i++) 
 	{
 		int triangleIdx = getRandTri();
 		Vec3f randPoint = getRandPoint(m_triangles[triangleIdx]);
-		float randConfFactor = getConfFactor(randPoint, triangleIdx);
+		float randConfFactor = interpConfFactor(randPoint, triangleIdx);
 
-		incrSignature(randConfFactor, minCOnf, maxConf, -99, 100);
+		incrSignature(randConfFactor, minConf, maxConf, -99, 100);
 	}
-*/
+
 	for (unsigned int i = 0; i < m_positions.size (); i++) 
 	{
 		incrSignature(m_confFacts[i], minConf, maxConf, -99, 100);
@@ -689,17 +689,46 @@ int Mesh::getRandTri()
 		randArea -= m_areas[m_sortedAreasIdx[i]];
 		i++;
 	}
-	return 0;
+	return i;
 }
 
+// http://www.cs.princeton.edu/~funk/tog02.pdf
+// p8, equation (1)
 Vec3f Mesh::getRandPoint(Triangle tri)
 {
-	return Vec3f(0,0,0);
+	float r1 = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+	float r2 = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+
+	return Vec3f((1 - sqrt(r1)) * m_positions[tri[0]] + 
+				sqrt(r1) * (1 - r2) * m_positions[tri[1]] + 
+				sqrt(r1) * r2 * m_positions[tri[2]]);
 }
 
-float Mesh::getConfFactor(Vec3f point, unsigned int triIdx)
+// https://stackoverflow.com/questions/18755251/linear-interpolation-of-three-3d-points-in-3d-space
+// section 3.4, use barycentric coordinates to find weight associated to each vertex
+float Mesh::interpConfFactor(Vec3f point, unsigned int triIdx)
 {
-	return 0;
+	unsigned int a = m_triangles[triIdx][0];
+	unsigned int b = m_triangles[triIdx][1];
+	unsigned int c = m_triangles[triIdx][2];
+
+	Vec3f v0 = m_positions[b] - m_positions[a];
+	Vec3f v1 = m_positions[c] - m_positions[a];
+	Vec3f v2 = point - m_positions[a];
+
+	float d00 = dot(v0, v0);
+	float d01 = dot(v0, v1);
+	float d11 = dot(v1, v1);
+	float d20 = dot(v2, v0);
+	float d21 = dot(v2, v1);
+
+	float denom = d00 * d11 - d01 * d01;
+
+	float v = (d11 * d20 - d01 * d21) / denom;
+	float w = (d00 * d21 - d01 * d20) / denom;
+	float u = 1.0 - v - w;
+
+	return v * m_confFacts[a] + w * m_confFacts[b] + u * m_confFacts[c];
 }
 
 void Mesh::incrSignature(float confFact, float min, float max, int binMin, int binMax)
