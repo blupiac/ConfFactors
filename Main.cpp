@@ -35,7 +35,7 @@ using namespace std;
 //#define USE_NPR
 
 
-//#define GRADIENT
+#define GRADIENT
 //#define DEBUG_LAP
 //#define DEBUG_GAUSS
 
@@ -769,29 +769,29 @@ void updatePerVertexColorResponse () {
 		if(response < 0.2)
 		{
 			resCol = colorGradient(red, yellow, (response - 0.0) * 5);
-			colorResponses[i] = Vec4f(resCol[r] , resCol[g] , resCol[b] , 0.0);
+			colorResponses[i] = Vec4f(resCol[r]/255.0 , resCol[g]/255.0 , resCol[b]/255.0 , 0.0);
 		}
 		else if(response < 0.4)
 		{
 			resCol = colorGradient(yellow, green, (response - 0.2) * 5);
-			colorResponses[i] = Vec4f(resCol[r] , resCol[g] , resCol[b] , 0.0);
+			colorResponses[i] = Vec4f(resCol[r]/255.0 , resCol[g]/255.0 , resCol[b]/255.0 , 0.0);
 		}
 		else if(response < 0.6)
 		{
 			resCol = colorGradient(green, blue, (response - 0.4) * 5);
-			colorResponses[i] = Vec4f(resCol[r] , resCol[g] , resCol[b] , 0.0);
+			colorResponses[i] = Vec4f(resCol[r]/255.0 , resCol[g]/255.0 , resCol[b]/255.0 , 0.0);
 		}
 		else if(response < 0.8)
 		{
 			resCol = colorGradient(blue, indigo, (response - 0.6) * 5);
-			colorResponses[i] = Vec4f(resCol[r] , resCol[g] , resCol[b] , 0.0);
+			colorResponses[i] = Vec4f(resCol[r]/255.0 , resCol[g]/255.0 , resCol[b]/255.0 , 0.0);
 		}
 		else
 		{
 			resCol = colorGradient(indigo, purple, (response - 0.8) * 5);
-			colorResponses[i] = Vec4f(resCol[r] , resCol[g] , resCol[b] , 0.0);
+			colorResponses[i] = Vec4f(resCol[r]/255.0 , resCol[g]/255.0 , resCol[b]/255.0 , 0.0);
 		}
-		std::cout << "response: " << response <<  " color given: " << resCol << std::endl;
+		//std::cout << "response: " << response <<  " color given: " << resCol << std::endl;
 		#else
 		colorResponses[i] = Vec4f(response * aoResponses[i],
 								response * aoResponses[i],
