@@ -15,6 +15,10 @@
 #include <map>
 #include <set>
 #include <algorithm>
+#include <eigen3/Eigen/LU>
+#include <eigen3/Eigen/Geometry>
+#include <eigen3/Eigen/Eigenvalues>
+#include <eigen3/Eigen/Sparse>
 #include "Vec3.h"
 #include "Triangle.h"
 
@@ -113,6 +117,8 @@ private:
     bool isObtuse(Triangle t);
     bool isBorder(unsigned int ptIdx);
     void purgeConf(float coef);
+    Eigen::SparseMatrix<float> getLapMatrix();
+    std::vector<float> solveConfFactor(std::vector<float> gaussDiff, Eigen::SparseMatrix<float> laplacian);
 
 	void initializeSignature(int min, int max);
     void printSignature(std::vector<Bin> sig, unsigned int totalItems);

@@ -405,8 +405,61 @@ float Mesh::getArea(Triangle tri)
 	return 0.5 * sqrt(v3[x]*v3[x] + v3[y]*v3[y] + v3[z]*v3[z]);
 }
 
-// TODO: matrix implementation?
-//https://github.com/Sunwinds/3D-Geometric-Features/tree/master/ConformalFactor
+// TODO: change all float to double
+
+// based, but far from copied from:
+// https://github.com/Sunwinds/3D-Geometric-Features/blob/master/ConformalFactor/CalConformalFactor.h
+Eigen::SparseMatrix<float> Mesh::getLapMatrix()
+{
+	// triples to be inserted later on sparse matrix
+	std::vector<Eigen::Triplet<float>> triplets;
+	triplets.reserve(m_positions.size() * 4);
+
+	for (unsigned int i = 0; i < m_positions.size (); i++) 
+	{
+		// get 1-neighborhood points
+		std::set<unsigned int> neighPoint = getVoisins(m_nneighbours[i], i);
+
+		std::set<unsigned int>::iterator ptIt;
+		for (ptIt = neighPoint.begin(); ptIt != neighPoint.end(); ++ptIt)
+		{
+			float cots = 0;
+
+			// get 2 triangles that contain main point plus the one of this iteration
+			std::vector<Triangle> triContain = containPoint(*ptIt, m_nneighbours[i]);
+			
+			if(triContain.size() == 2)
+			{
+				// calculate cot on both angles wanted
+				std::vector<Triangle>::iterator triIt;
+				for (triIt = triContain.begin(); triIt != triContain.end(); ++triIt)
+				{
+					float cot = cotan(i, *ptIt, *triIt);
+					if(!std::isnan(cot) && cot < pow(10,3))
+						cots += cot;
+				}
+			}
+
+			// divide by 2 because each cotan gets added twice 
+			// TODO: maybe there's a way to only do this once?
+			cots /= 2.0;
+
+			// add cots to both matrix elements
+			triplets.push_back(Eigen::Triplet<float>(i, *ptIt, -cots));
+			triplets.push_back(Eigen::Triplet<float>(*ptIt, i, -cots));
+			// diag elems
+			triplets.push_back(Eigen::Triplet<float>(i, i, cots));
+			triplets.push_back(Eigen::Triplet<float>(*ptIt, *ptIt, cots));
+		}
+	}
+
+	// initializing sparse matrix
+	Eigen::SparseMatrix<float> lap(m_positions.size(), m_positions.size());
+	// inserts all elements in vector in matrix, if duplicated, they are added
+	lap.setFromTriplets(triplets.begin(), triplets.end());
+
+	return lap;
+}
 
 // using: http://www.geometry.caltech.edu/pubs/DMSB_III.pdf
 float Mesh::getLaplacian(unsigned int i)
@@ -551,6 +604,30 @@ bool Mesh::isObtuse(Triangle t)
 		}
 	}
 	return false;
+}
+
+// https://scicomp.stackexchange.com/questions/21343/solving-linear-equations-using-eigen
+std::vector<float> Mesh::solveConfFactor(std::vector<float> gaussDiff, Eigen::SparseMatrix<float> laplacian)
+{
+	Eigen::SparseLU<Eigen::SparseMatrix<float> > solverLap;
+	Eigen::VectorXf gaussDiffVect = Eigen::Map<Eigen::VectorXf, Eigen::Unaligned>(gaussDiff.data(), gaussDiff.size());
+	Eigen::VectorXf confFact;
+
+	laplacian.makeCompressed();
+	solverLap.analyzePattern(laplacian);
+	solverLap.factorize(laplacian);
+
+	if(solverLap.info() != Eigen::Success)
+	{
+		std::cout << "Failure to solve confFact linear equations" << std::endl;
+	}
+	else
+	{
+		confFact = solverLap.solve(gaussDiffVect);
+	}
+
+	std::vector<float> res(&confFact[0], confFact.data()+confFact.cols()*confFact.rows());
+	return res;
 }
 
 //-----------------------------------------------------------------------------
