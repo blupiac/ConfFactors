@@ -15,10 +15,12 @@
 #include <map>
 #include <set>
 #include <algorithm>
+
 #include <eigen3/Eigen/LU>
 #include <eigen3/Eigen/Geometry>
 #include <eigen3/Eigen/Eigenvalues>
 #include <eigen3/Eigen/Sparse>
+
 #include "Vec3.h"
 #include "Triangle.h"
 

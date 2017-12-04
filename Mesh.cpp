@@ -128,6 +128,7 @@ void Mesh::calculateConfFact ()
 	maxGauss = -1e10;
 	#endif
 
+	// calculate gaussian curv
 	for (unsigned int i = 0; i < m_positions.size (); i++)
     {
     	// gaussDiff = target - gaussian
@@ -138,6 +139,7 @@ void Mesh::calculateConfFact ()
         totalCurv -= m_gaussDiff[i];
     }
 
+    // calculate target curv, and join the diff in a vector
 	for (unsigned int i = 0; i < m_positions.size (); i++) 
 	{
 		float targCurv = getTargetCurv(i);
@@ -146,7 +148,15 @@ void Mesh::calculateConfFact ()
 		m_gaussDiff[i] += targCurv;
 	}
 
-	Eigen::SparseMatrix<float> lapMatrix = getLapMatrix();
+	// laplacian matrix
+	Eigen::SparseMatrix<float> lapMatrix;
+	// rough estimation of non-zero elements: each vertex will have 6 neighbours plus itself
+	lapMatrix.reserve(m_positions.size() * 7);
+
+	// necessary, otherwise eigen will make a compressed copy when using sparseLU
+	lapMatrix.makeCompressed();
+
+	lapMatrix = getLapMatrix();
 
 	m_confFacts = solveConfFactor(m_gaussDiff, lapMatrix);
 
@@ -426,13 +436,11 @@ std::vector<float> Mesh::solveConfFactor(std::vector<float> gaussDiff, Eigen::Sp
 
 	if(solverLap.info() != Eigen::Success)
 	{
-		std::cout << "Failure to solve confFact linear equations" << std::endl;
-	}
-	else
-	{
-		confFact = solverLap.solve(gaussDiffVect);
+		std::cerr << "Failure to solve confFact linear equations: " << solverLap.lastErrorMessage() << std::endl;
+		exit(1);
 	}
 
+	confFact = solverLap.solve(gaussDiffVect);
 	std::vector<float> res(&confFact[0], confFact.data()+confFact.cols()*confFact.rows());
 	return res;
 }
