@@ -22,7 +22,7 @@
 #include "Vec3.h"
 #include "Triangle.h"
 
-#define DEBUG
+//#define DEBUG
 
 struct Edge {
  unsigned int i , j;
@@ -63,26 +63,15 @@ public:
 	void calculateSignature ();
     float normalizeConf(unsigned int confIdx);
     #ifdef DEBUG
-    float normalizeLaplacian(unsigned int lapIdx);
     float normalizeGausscurv(unsigned int gaussIdx);
     #endif
 
     /// Compute smooth per-vertex normals
     void recomputeNormals ();
-    
-    void laplacianFilter (float alpha);
-    void laplacianFilterGeom(float alpha);
-
-	void simplify(unsigned int resolution);
-	void simplifyAdaptive(unsigned int n);
-
-	void subdivide();
 
     /// scale to the unit cube and center at original
     void centerAndScaleToUnit ();
 
-	void addFloor (unsigned int type);
-    void removeFloor (unsigned int type);
 
 private:
     std::vector<Vec3f> m_positions;
@@ -96,10 +85,7 @@ private:
     #endif
     std::vector<Bin> signature;
     std::vector<Triangle> m_triangles;
-    // TODO: send indexes instead of triangles, this way getTargetCurv can be optimized
-    std::vector<std::vector<Triangle> > m_nneighbours;
-    std::map <Edge, unsigned int> middle_points;
-    std::map <std::pair<Triangle, unsigned int>, float> cotans;
+    std::vector<std::vector<unsigned int> > m_nneighbours;
     float totalArea, totalCurv, totalConf, minConf, maxConf;
     #ifdef DEBUG
     float minGauss, maxGauss;
@@ -122,10 +108,9 @@ private:
 	void incrSignature(float confFact, float min, float max, int binMin, int binMax);
 
     // helpers
-	std::set<unsigned int> getVoisins(std::vector<Triangle> tri, unsigned int point);
-    std::vector<Triangle> containPoint(unsigned int point, std::vector<Triangle> triangles);
-    float cotan(unsigned int point1, unsigned int point2, Triangle triangle);
-    void recomputeNN();
-    std::vector<Triangle> intersectTriVect(std::vector<Triangle> v1, std::vector<Triangle> v2);
+	std::set<unsigned int> getVoisins(std::vector<unsigned int> tri, unsigned int point);
+    std::vector<unsigned int> containPoint(unsigned int point, std::vector<unsigned int> triangles);
+    float cotan(unsigned int point1, unsigned int point2, unsigned int triangle);
+    std::vector<Triangle> intersectTriVect(std::vector<unsigned int> v1, std::vector<unsigned int> v2);
     
 };

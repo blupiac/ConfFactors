@@ -34,7 +34,7 @@
 
 static const unsigned int DEFAULT_SCREENWIDTH = 1024;
 static const unsigned int DEFAULT_SCREENHEIGHT = 768;
-static const std::string DEFAULT_MESH_FILE ("models/armadillo1.off");
+static const std::string DEFAULT_MESH_FILE ("models/cow.off");
 
 // Rayons envoyes en AO, et portee maximale pour une intersection
 static const unsigned int AO_SAMPLES = 10;
@@ -145,9 +145,6 @@ void printUsage () {
 		 << " w: Toggle wireframe mode" << std::endl 
 		 << " n: reload mesh" << std::endl
 		 << " r: recompute normals" << std::endl
-		 
-		 << std::endl
-		 << " c: calculate confFactor" << std::endl
 
 		 << std::endl
          << " <drag>+<left button>: rotate model" << std::endl 
@@ -388,9 +385,6 @@ void key (unsigned char keyPressed, int x, int y) {
             glutFullScreen ();
             fullScreen = true;
         }      
-        break;
-    case 'c':
-        mesh.calculateConfFact();
         break;
     case 'n':
     	mesh.loadOFF (DEFAULT_MESH_FILE);

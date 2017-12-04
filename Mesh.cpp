@@ -19,7 +19,7 @@
 #include <cmath>
 #include <assert.h>
 
-#define DEBUG
+//#define DEBUG
 
 #define MED_X min_x + (max_x - min_x)/2
 #define MED_Y min_y + (max_y - min_y)/2
@@ -44,7 +44,6 @@ void Mesh::clear () {
     m_normals.clear ();
     m_triangles.clear ();
     m_nneighbours.clear();
-    middle_points.clear();
 }
 
 // Utilise pour indexes qui representent des coordonees de position
@@ -89,7 +88,7 @@ void Mesh::loadOFF (const std::string & filename) {
         // fills neighbour vector
         for (unsigned int j = 0; j < 3; j++)
         {
-            m_nneighbours[m_triangles[i][j]].push_back(m_triangles[i]);
+            m_nneighbours[m_triangles[i][j]].push_back(i);
         }
         
         float area = getArea(m_triangles[i]);
@@ -118,9 +117,6 @@ void Mesh::loadOFF (const std::string & filename) {
 //-----------------------------------------------------------------------------
 //--------------------------calculateConfFact----------------------------------
 //-----------------------------------------------------------------------------
-
-// this helped a lot, much clearer explanation (page 3):
-// https://www.researchgate.net/profile/Ioannis_Pratikakis/publication/220888687_ConTopo_Non-Rigid_3D_Object_Retrieval_using_Topological_Information_guided_by_Conformal_Factors/links/0fcfd5107ee6419464000000.pdf
 
 void Mesh::calculateConfFact () 
 {
@@ -179,13 +175,13 @@ float Mesh::normalizeGausscurv(unsigned int gaussIdx)
 
 float Mesh::getGaussCurv(unsigned int pointIdx)
 {
-	std::vector<Triangle> neighbours = m_nneighbours[pointIdx];
+	std::vector<unsigned int> neighbours = m_nneighbours[pointIdx];
 	float totalAngle = 0;
 	float curv;
 
 	for(unsigned int i = 0; i < neighbours.size(); i++)
 	{
-		totalAngle += getAngle(neighbours[i], pointIdx);
+		totalAngle += getAngle(m_triangles[neighbours[i]], pointIdx);
 	}
 
 	// interior
@@ -223,10 +219,10 @@ bool Mesh::isBorder(unsigned int ptIdx)
 	for (ptIt = neighPoint.begin(); ptIt != neighPoint.end(); ++ptIt)
 	{
 		unsigned int occur = 0;
-		std::vector<Triangle>::iterator triIt;
+		std::vector<unsigned int>::iterator triIt;
 		for (triIt = m_nneighbours[ptIdx].begin(); triIt != m_nneighbours[ptIdx].end(); ++triIt)
 		{
-			Triangle t = *triIt;
+			Triangle t = m_triangles[*triIt];
 			if(*ptIt == t[0] || *ptIt == t[1] || *ptIt == t[2])
 			{
 				occur++;
@@ -304,12 +300,12 @@ float Mesh::getAngle(Triangle tri, int pointIdx)
 
 float Mesh::getTargetCurv(unsigned int i)
 {
-	std::vector<Triangle> tris = m_nneighbours[i];
+	std::vector<unsigned int> tris = m_nneighbours[i];
 	float area = 0;
 
 	for(unsigned int i = 0; i < tris.size(); i++)
 	{
-		area += getArea(tris[i]) / 3;
+		area += getArea(m_triangles[tris[i]]) / 3;
 	}
 
 	return totalCurv * area / totalArea;
@@ -382,12 +378,12 @@ Eigen::SparseMatrix<float> Mesh::getLapMatrix()
 			float cots = 0;
 
 			// get 2 triangles that contain main point plus the one of this iteration
-			std::vector<Triangle> triContain = containPoint(*ptIt, m_nneighbours[i]);
+			std::vector<unsigned int> triContain = containPoint(*ptIt, m_nneighbours[i]);
 			
 			if(triContain.size() == 2)
 			{
 				// calculate cot on both angles wanted
-				std::vector<Triangle>::iterator triIt;
+				std::vector<unsigned int>::iterator triIt;
 				for (triIt = triContain.begin(); triIt != triContain.end(); ++triIt)
 				{
 					float cot = cotan(i, *ptIt, *triIt);
@@ -586,14 +582,14 @@ void Mesh::recomputeNormals () {
 
 
 // donne points voisins en sachant les triangles qui contiennent le point en question
-std::set<unsigned int> Mesh::getVoisins(std::vector<Triangle> tri, unsigned int point) {
+std::set<unsigned int> Mesh::getVoisins(std::vector<unsigned int> tri, unsigned int point) {
 	std::set<unsigned int> voisins;
 	
-	std::vector<Triangle>::iterator it;
+	std::vector<unsigned int>::iterator it;
 	for (it = tri.begin(); it != tri.end(); it++)
 
 	{
-		Triangle t = (*it);
+		Triangle t = m_triangles[*it];
 
 		if(t[0] == point)
 		{
@@ -616,38 +612,42 @@ std::set<unsigned int> Mesh::getVoisins(std::vector<Triangle> tri, unsigned int 
 }
 
 // retourne triangles qui contiennent le point
-std::vector<Triangle> Mesh::containPoint(unsigned int point, std::vector<Triangle> triangles)
+std::vector<unsigned int> Mesh::containPoint(unsigned int point, std::vector<unsigned int> triangles)
 {
 
-	std::vector<Triangle> result;
+	std::vector<unsigned int> result;
 	
-	std::vector<Triangle>::iterator it;
+	std::vector<unsigned int>::iterator it;
 	for (it = triangles.begin(); it != triangles.end(); it++)
-		if((*it)[0] == point || (*it)[1] == point || (*it)[2] == point)
+	{
+		Triangle t = m_triangles[*it];
+		if(t[0] == point || t[1] == point || t[2] == point)
 			result.push_back(*it);
-			
+	}	
 	return result;
 }
 
 // calcule cotangente
-float Mesh::cotan(unsigned int point1, unsigned int point2, Triangle triangle)
+float Mesh::cotan(unsigned int point1, unsigned int point2, unsigned int triangle)
 {
 	Vec3f e1, e2;
 
-	if(point1 != triangle[0] && point2 != triangle[0])
+	Triangle t = m_triangles[triangle];
+
+	if(point1 != t[0] && point2 != t[0])
 	{
-		e1 = m_positions[triangle[0]] - m_positions[triangle[1]];
-		e2 = m_positions[triangle[0]] - m_positions[triangle[2]];
+		e1 = m_positions[t[0]] - m_positions[t[1]];
+		e2 = m_positions[t[0]] - m_positions[t[2]];
 	}
-	else if(point1 != triangle[1] && point2 != triangle[1])
+	else if(point1 != t[1] && point2 != t[1])
 	{
-		e1 = m_positions[triangle[1]] - m_positions[triangle[0]];
-		e2 = m_positions[triangle[1]] - m_positions[triangle[2]];
+		e1 = m_positions[t[1]] - m_positions[t[0]];
+		e2 = m_positions[t[1]] - m_positions[t[2]];
 	}
 	else
 	{
-		e1 = m_positions[triangle[2]] - m_positions[triangle[1]];
-		e2 = m_positions[triangle[2]] - m_positions[triangle[0]];	
+		e1 = m_positions[t[2]] - m_positions[t[1]];
+		e2 = m_positions[t[2]] - m_positions[t[0]];	
 	}
 	
 	return dot(-e1, e2) / sqrt(e1.squaredLength() * e2.squaredLength() - pow(dot(e1, e2) , 2));
