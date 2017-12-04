@@ -30,7 +30,6 @@
 
 
 #define GRADIENT
-//#define DEBUG_LAP
 //#define DEBUG_GAUSS
 
 static const unsigned int DEFAULT_SCREENWIDTH = 1024;
@@ -145,45 +144,10 @@ void printUsage () {
 
 		 << " w: Toggle wireframe mode" << std::endl 
 		 << " n: reload mesh" << std::endl
-		 << " y: put floor with 20x20 resolution (press again to have 200x200, and a 3rd time to disable)" << std::endl
 		 << " r: recompute normals" << std::endl
 		 
 		 << std::endl
-		 << " ====== TP1: Synthese d’Image : Eclairage et BRDF ======" << std::endl
-		 << " 0: switch to 3 sources of color (press again to go back to 1 source)" << std::endl
-		 << " 4: Lambert BRDF" << std::endl
-		 << " 5: Blinn-Phong BRDF" << std::endl
-		 << " 6: Cook-Torrance BRDF" << std::endl
-		 << " 7: GGX BRDF" << std::endl
-		 << " to use the shader, uncomment \"define SHADER\" in code" << std::endl
-		 
-		 << std::endl
-		 << " ====== TP2: Synthese d’Image : Ombrage ======" << std::endl
-		 << " s: show shadow" << std::endl
-		 << " o: show ambient occlusion" << std::endl
-		 << " to use BVH, uncomment \"define BVH\" in code" << std::endl
-		 << " d: show bounding box of BVH (pressing again show bounding boxes of sons recursively)" << std::endl
-		 
-		 << std::endl
-		 << " ====== TP3: Synthese d’Image : NPR ======" << std::endl
-		 << " to use NPR shader, uncomment \"define NPR\" in code" << std::endl
-		 
-		 << std::endl
-		 << " ====== TP4: Modélisation Geometrique : Filtrage ======" << std::endl
-		 << " l: topologic laplacian filter with alpha 0.1" << std::endl
-		 << " 1: geometric laplacian filter with alpha 0.1" << std::endl
-		 << " 2: geometric laplacian filter with alpha 0.5" << std::endl
-		 << " 3: geometric laplacian filter with alpha 1.0" << std::endl
-		 
-		 << std::endl
-		 << " ====== TP5: Modélisation Geometrique : Simplification ======" << std::endl
-		 << " 8: simplify with grid using 16 cubes" << std::endl
-		 << " 9: simplify with octree using at most 14 points per node" << std::endl
-		 << " obs: ne marche pas tres bien avec Monkey car tres simple deja" << std::endl
-		 
-		 << std::endl
-		 << " ====== TP6: Modelisation Geometrique : Subdivision ======" << std::endl
-		 << " z: subdivide surface" << std::endl
+		 << " c: calculate confFactor" << std::endl
 
 		 << std::endl
          << " <drag>+<left button>: rotate model" << std::endl 
@@ -343,10 +307,7 @@ void updatePerVertexColorResponse () {
 
     for (unsigned int i = 0; i < colorResponses.size (); i++)
     {
-    	#ifdef DEBUG_LAP	
-    	//std::cout << mesh.normalizeLaplacian(i) << std::endl;
-    	float response = mesh.normalizeLaplacian(i);
-    	#elif defined(DEBUG_GAUSS)
+    	#ifdef DEBUG_GAUSS
     	//std::cout << mesh.normalizeConf(i) << std::endl;
     	float response = mesh.normalizeGausscurv(i);
     	#else
@@ -384,9 +345,7 @@ void updatePerVertexColorResponse () {
 		}
 		//std::cout << "response: " << response <<  " color given: " << resCol << std::endl;
 		#else
-		colorResponses[i] = Vec4f(response * aoResponses[i],
-								response * aoResponses[i],
-								response * aoResponses[i],0.0);
+		colorResponses[i] = Vec4f(response, response, response,0.0);
 		#endif
     }
 }
@@ -397,11 +356,6 @@ void updatePerVertexColorResponse () {
 //-----------------------------------------------------------------------------
 
 void renderScene () {
-	
-	#ifdef USE_BVH
-	if(bboxVisible)
-		bvh->drawBVH();
-	#endif
 
     updatePerVertexColorResponse ();
     glVertexPointer (3, GL_FLOAT, sizeof (Vec3f), (GLvoid*)(&(mesh.positions()[0])));
@@ -435,22 +389,12 @@ void key (unsigned char keyPressed, int x, int y) {
             fullScreen = true;
         }      
         break;
-    case '8':
-        mesh.simplify(16);
-        break;
-    case '9':
-        mesh.simplifyAdaptive(14);  
-        break;
-    case 'z':
-        mesh.subdivide ();
-        colorResponses.resize(mesh.positions().size());
-        
-        for(unsigned int i = 0; i < colorResponses.size(); i++ )
-			colorResponses[i] = Vec4f(0.0,0.0,0.0,0.0);
+    case 'c':
+        mesh.calculateConfFact();
         break;
     case 'n':
     	mesh.loadOFF (DEFAULT_MESH_FILE);
-		colorResponses.resize(mesh.positions().size());			
+		colorResponses.resize(mesh.positions().size());
     	break;
     case 'r':
     	mesh.recomputeNormals();

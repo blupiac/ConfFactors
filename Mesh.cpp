@@ -69,9 +69,9 @@ void Mesh::loadOFF (const std::string & filename) {
     m_areas.resize (sizeT);
     m_sortedAreasIdx.resize (sizeT);
     m_confFacts.resize (sizeV);
+    m_gaussDiff.resize (sizeV);
     #ifdef DEBUG
     m_gausscurv.resize (sizeV);
-    m_laplacian.resize (sizeV);
     #endif
     m_nneighbours.resize(sizeV);
     totalArea = 0; totalCurv = 0; totalConf = 0;
@@ -99,12 +99,6 @@ void Mesh::loadOFF (const std::string & filename) {
     }
     in.close ();
 
-    // calculate total gauss curv, maybe fill a vector?
-    for (unsigned int i = 0; i < sizeV; i++)
-    {
-        totalCurv += getGaussCurv(i);
-    }
-
     // sort area idx vector
     std::size_t n(0);
     std::generate(std::begin(m_sortedAreasIdx), std::end(m_sortedAreasIdx), [&]{ return n++; });
@@ -116,10 +110,6 @@ void Mesh::loadOFF (const std::string & filename) {
 	// fill confFactor vector
     calculateConfFact();
     calculateSignature();
-
-    #ifdef DEBUG
-    purgeConf(0.01);
-    #endif
 
     centerAndScaleToUnit ();
     recomputeNormals ();
@@ -134,25 +124,30 @@ void Mesh::loadOFF (const std::string & filename) {
 
 void Mesh::calculateConfFact () 
 {
-	std::vector<float> m_gaussDiff;
-	m_gaussDiff.resize (m_positions.size ());
-
 	minConf = 1e10;
 	maxConf = -1e10;
 
 	#ifdef DEBUG
 	minGauss = 1e10;
 	maxGauss = -1e10;
-	minLap = 1e10;
-	maxLap = -1e10;
 	#endif
+
+	for (unsigned int i = 0; i < m_positions.size (); i++)
+    {
+    	// gaussDiff = target - gaussian
+    	// cannot calculate target without total gauss curv
+    	// so we start filling gaussDiff now to avoid recalculating
+    	// the gaussDiff below
+    	m_gaussDiff[i] = -getGaussCurv(i);
+        totalCurv -= m_gaussDiff[i];
+    }
 
 	for (unsigned int i = 0; i < m_positions.size (); i++) 
 	{
-		float gaussCurv = getGaussCurv(i);
 		float targCurv = getTargetCurv(i);
 
-		m_gaussDiff[i] = targCurv - gaussCurv;
+		// see explanation just above
+		m_gaussDiff[i] += targCurv;
 	}
 
 	Eigen::SparseMatrix<float> lapMatrix = getLapMatrix();
@@ -173,37 +168,7 @@ float Mesh::normalizeConf(unsigned int confIdx)
 	return (m_confFacts[confIdx] - minConf) / (maxConf - minConf);
 }
 
-void Mesh::purgeConf(float coef)
-{
-	// purge n% of the higher and lower results
-	float meanConf = totalConf / m_confFacts.size();
-
-	for(unsigned int i = 0 ; i < m_confFacts.size() ; i++)
-	{
-		if(m_confFacts[i] < (minConf * (1 - coef) + meanConf * coef ) ||
-			m_confFacts[i] > (maxConf * (1 - coef) + meanConf * coef ) )
-		{
-			m_confFacts[i] = meanConf;
-		}
-	}
-
-	auto result = std::minmax_element(m_confFacts.begin(), m_confFacts.end());
-
-	minConf = m_confFacts[result.first - m_confFacts.begin()];
-	maxConf = m_confFacts[result.second - m_confFacts.begin()];
-
-	//std::cout << minConf << " " << maxConf << std::endl;
-}
-
 #ifdef DEBUG
-
-float Mesh::normalizeLaplacian(unsigned int lapIdx)
-{	
-	//std::cout << "this lap: " << m_laplacian[lapIdx] << " min lap: " << minLap << " max lap: " << maxLap << std::endl;
-	//std::cout << "normalized: " << (m_laplacian[lapIdx] - minLap) / (maxLap - minLap) << std::endl;
-
-	return (m_laplacian[lapIdx] - minLap) / (maxLap - minLap);
-}
 
 float Mesh::normalizeGausscurv(unsigned int gaussIdx)
 {
@@ -452,151 +417,6 @@ Eigen::SparseMatrix<float> Mesh::getLapMatrix()
 	return lap;
 }
 
-// using: http://www.geometry.caltech.edu/pubs/DMSB_III.pdf
-float Mesh::getLaplacian(unsigned int i)
-{
-	float AMixed = getAMixed(i);
-
-	// get 1-neighborhood points
-	std::set<unsigned int> neighPoint = getVoisins(m_nneighbours[i], i);
-
-	float sumCotDist = 0;
-
-	std::set<unsigned int>::iterator ptIt;
-	for (ptIt = neighPoint.begin(); ptIt != neighPoint.end(); ++ptIt)
-	{
-		float cots = 0;
-
-		// get 2 triangles that contain main point plus the one of this iteration
-		std::vector<Triangle> triContain = containPoint(*ptIt, m_nneighbours[i]);
-		
-		// calculate cot on both angles wanted (alpha and betha on p9 illustration on the link)
-		std::vector<Triangle>::iterator triIt;
-		for (triIt = triContain.begin(); triIt != triContain.end(); ++triIt)
-		{
-			float cot = cotan(i, *ptIt, *triIt);
-			if(!std::isnan(cot) && cot < pow(10,3))
-				cots += cot;
-		}
-
-		sumCotDist += cots * dist(m_positions[i], m_positions[*ptIt]);
-	}
-
-	#ifdef DEBUG
-	m_laplacian[i] = sumCotDist / (2 * AMixed);
-
-	if(minLap > m_laplacian[i])
-	{
-		minLap = m_laplacian[i]; 
-	}
-	if(maxLap < m_laplacian[i])
-	{
-		maxLap = m_laplacian[i];
-	}
-	#endif
-
-	return sumCotDist / (2 * AMixed);
-}
-
-float Mesh::getAMixed(unsigned int i)
-{
-	std::vector<Triangle> tris = m_nneighbours[i];
-	float mixedArea = 0;
-
-	std::vector<Triangle>::iterator triIt;
-	for (triIt = tris.begin(); triIt != tris.end(); ++triIt)
-	{
-		if(!isObtuse(*triIt))
-		{
-			mixedArea += voronoiArea(i, *triIt) ;
-		}
-		else
-		{
-			if(getAngle(*triIt, i) > M_PI * 0.5)
-			{
-				mixedArea += getArea(*triIt) / 2.0;
-			}
-			else
-			{
-				mixedArea += getArea(*triIt) / 4.0;
-			}
-		}
-	}
-
-	return mixedArea;
-}
-
-float Mesh::voronoiRegion(unsigned int ptIdx)
-{
-	// get 1-neighborhood points
-	std::set<unsigned int> neighPoint = getVoisins(m_nneighbours[ptIdx], ptIdx);
-
-	float sumCotDist = 0;
-
-	std::set<unsigned int>::iterator ptIt;
-	for (ptIt = neighPoint.begin(); ptIt != neighPoint.end(); ++ptIt)
-	{
-		float cots = 0;
-
-		// get 2 triangles that contain main point plus the one of this iteration
-		std::vector<Triangle> triContain = containPoint(*ptIt, m_nneighbours[ptIdx]);
-
-		// calculate cot on both angles wanted (alpha and betha on p9 illustration on the link)
-		std::vector<Triangle>::iterator triIt;
-		for (triIt = triContain.begin(); triIt != triContain.end(); ++triIt)
-		{
-			float cot = cotan(ptIdx, *ptIt, *triIt);
-			if(!std::isnan(cot) && cot < 1000)
-				cots += cot;
-		}
-
-		float d = dist(m_positions[ptIdx], m_positions[*ptIt]);
-		sumCotDist += cots * d * d;
-	}
-
-	return sumCotDist / 8.0;
-}
-
-float Mesh::voronoiArea(unsigned int ptIdx, Triangle t)
-{
-	float vArea = 0;
-
-	if(t[0] == ptIdx)
-	{
-		return dist(m_positions[ptIdx], m_positions[t[1]]) * dist(m_positions[ptIdx], m_positions[t[1]]) * cotan(ptIdx, t[1], t) +
-				 dist(m_positions[ptIdx], m_positions[t[2]]) * dist(m_positions[ptIdx], m_positions[t[2]]) * cotan(ptIdx, t[2], t);
-	}
-	else if(t[1] == ptIdx)
-	{
-		return dist(m_positions[ptIdx], m_positions[t[1]]) * dist(m_positions[ptIdx], m_positions[t[1]]) * cotan(ptIdx, t[1], t) +
-				 dist(m_positions[ptIdx], m_positions[t[2]]) * dist(m_positions[ptIdx], m_positions[t[2]]) * cotan(ptIdx, t[2], t);	
-	}
-	else if(t[2] == ptIdx)
-	{
-		return dist(m_positions[ptIdx], m_positions[t[1]]) * dist(m_positions[ptIdx], m_positions[t[1]]) * cotan(ptIdx, t[1], t) +
-				 dist(m_positions[ptIdx], m_positions[t[2]]) * dist(m_positions[ptIdx], m_positions[t[2]]) * cotan(ptIdx, t[2], t);
-	}
-	else
-	{
-		std::cout << "Wrong pair of point and triangle for voronoiArea calculation" << std::endl;
-	}
-
-	return vArea;
-}
-
-bool Mesh::isObtuse(Triangle t)
-{
-	// for each point, see if angle is obtuse
-	for(unsigned int i = 0; i < 3; i++) 
-	{
-		if(getAngle(t, t[i]) > M_PI * 0.5)
-		{
-			return true;
-		}
-	}
-	return false;
-}
-
 // https://scicomp.stackexchange.com/questions/21343/solving-linear-equations-using-eigen
 std::vector<float> Mesh::solveConfFactor(std::vector<float> gaussDiff, Eigen::SparseMatrix<float> laplacian)
 {
@@ -742,7 +562,7 @@ void Mesh::incrSignature(float confFact, float min, float max, int binMin, int b
 }
 
 //-----------------------------------------------------------------------------
-//---------------------------recomputeNormals----------------------------------
+//-------------------------------helpers---------------------------------------
 //-----------------------------------------------------------------------------
 
 void Mesh::recomputeNormals () {
@@ -764,453 +584,6 @@ void Mesh::recomputeNormals () {
         m_normals[i].normalize ();
 }
 
-//-----------------------------------------------------------------------------
-//---------------------------laplacianFilters----------------------------------
-//-----------------------------------------------------------------------------
-
-void Mesh::laplacianFilter(float alpha) {
-	
-	for(unsigned int i = 0; i < m_nneighbours.size (); i++)
-	{
-		// Prends tous les points voisins au point
-		std::set<unsigned int> voisins = getVoisins(m_nneighbours[i], i);
-
-		// Calcule barycentre de ces points
-		Vec3f bar = calculerBarycentre(voisins);
-
-		// Repositionne point
-		m_positions[i] = m_positions[i]*(1-alpha) + bar*alpha;
-    }
-	
-	recomputeNormals ();
-}
-
-// Idem aue laplacien normal, sauf pour poids lors du calcul du barycentre
-void Mesh::laplacianFilterGeom(float alpha) {
-	
-	for(unsigned int i = 0; i < m_nneighbours.size (); i++)
-
-	{
-		std::set<unsigned int> voisins = getVoisins(m_nneighbours[i], i);
-
-		Vec3f bar = calculerBarycentreGeom(i, voisins, m_nneighbours[i]);
-
-		m_positions[i] = m_positions[i]*(1-alpha) + bar*alpha;
-
-    }
-	recomputeNormals ();
-}
-
-// Prends min et max d'une mesh
-void Mesh::getMaxMin(float& max_x, float& max_y, float& max_z, float& min_x,
-				float& min_y, float& min_z)
-{
-		
-	max_x = max_y = max_z = pow(10,-10);
-	min_x = min_y = min_z = pow(10,10);
-	
-	for(unsigned int i = 0; i < m_positions.size(); i++) {
-		if(m_positions[i][0] > max_x)
-			max_x = m_positions[i][0];
-		if(m_positions[i][0] < min_x)
-			min_x = m_positions[i][0];
-
-		if(m_positions[i][1] > max_y)
-			max_y = m_positions[i][1];
-		if(m_positions[i][1] < min_y)
-			min_y = m_positions[i][1];
-
-		if(m_positions[i][2] > max_z)
-			max_z = m_positions[i][2];
-		if(m_positions[i][2] < min_z)
-			min_z = m_positions[i][2];
-	}
-}
-
-// Retourne tous les points de la mesh dans les limites donnes
-std::vector<unsigned int> Mesh::allInside(float max_x, float max_y, float max_z,
-								float min_x, float min_y, float min_z)
-{
-	std::vector<unsigned int> inside;
-
-	for(unsigned int n = 0; n < m_positions.size(); n++) {
-				
-		if(	m_positions[n][0] < max_x && m_positions[n][0] > min_x &&
-			m_positions[n][1] < max_y && m_positions[n][1] > min_y &&
-			m_positions[n][2] < max_z && m_positions[n][2] > min_z)
-		{
-			inside.push_back(n);
-		}
-	}
-
-	return inside;
-	
-}
-
-//-----------------------------------------------------------------------------
-//-----------------------------simplifySubOct----------------------------------
-//-----------------------------------------------------------------------------
-
-void Mesh::simplifySubOct(float max_x, float max_y, float max_z,
-							float min_x, float min_y, float min_z,
-							unsigned int n, std::vector<Vec3f>& newPositions, 
-							std::vector<Vec3f>& newNormals, std::vector<unsigned int>& oldToNew)
-{
-	// Si octree ne peut pas etre subdivisee
-	std::vector<unsigned int> inside = allInside(max_x, max_y, max_z, min_x, min_y, min_z);
-	if(inside.size() < n && inside.size() != 0)
-	{
-		Vec3f posMoyen, normMoyen;
-		posMoyen = normMoyen = Vec3f(0.0,0.0,0.0);
-	
-		// faire moyenne des points dans la bbox
-		for(std::vector<unsigned int>::iterator it = inside.begin();
-				it != inside.end(); it++) {
-			
-			posMoyen += m_positions[*it];
-			normMoyen += m_normals[*it];
-			
-			// Change point dans le vecteur des indices
-			oldToNew[*it] = newPositions.size();
-			
-		}
-		
-		posMoyen /= (float) inside.size();
-		normalize(normMoyen);
-		
-		// Ajouter comme point de la mesh
-		newPositions.push_back(posMoyen);
-		newNormals.push_back(normMoyen);
-	}
-	// Si octree doit etre subdivisee
-	else if(inside.size() != 0)
-	{
-		// lowLefFron
-		simplifySubOct(MED_X, MED_Y, MED_Z, min_x, min_y, min_z, n, newPositions, newNormals, oldToNew);
-		// uppLefFron
-		simplifySubOct(MED_X, max_y, MED_Z,	min_x, MED_Y, min_z, n, newPositions, newNormals, oldToNew);
-		// uppRigFron
-		simplifySubOct(max_x, max_y, MED_Z, MED_X, MED_Y, min_z, n, newPositions, newNormals, oldToNew);
-		// lowRigFron
-		simplifySubOct(max_x, MED_Y, MED_Z, MED_X, min_y, min_z, n, newPositions, newNormals, oldToNew);
-		
-		// lowLefBack
-		simplifySubOct(MED_X, MED_Y, max_z, min_x, min_y, MED_Z, n, newPositions, newNormals, oldToNew);
-		// uppLefBack
-		simplifySubOct(MED_X, max_y, max_z,	min_x, MED_Y, MED_Z, n, newPositions, newNormals, oldToNew);
-		// uppRigBack
-		simplifySubOct(max_x, max_y, max_z, MED_X, MED_Y, MED_Z, n, newPositions, newNormals, oldToNew);
-		// lowRigBack
-		simplifySubOct(max_x, MED_Y, max_z, MED_X, min_y, MED_Z, n, newPositions, newNormals, oldToNew);
-	}
-}
-
-// Simplifier la mesh utilisant un octree
-void Mesh::simplifyAdaptive(unsigned int n)
-{
-	if(m_positions.size() < n)
-		return;
-
-	std::vector<unsigned int> oldToNew;
-	oldToNew.resize(m_positions.size());
-	float max_x, max_y, max_z, min_x, min_y, min_z;
-	getMaxMin(max_x, max_y, max_z, min_x, min_y, min_z);
-	
-	max_x *= 1.01;
-	min_x *= 1.01;
-	
-	max_y *= 1.01;
-	min_y *= 1.01;
-	
-	max_z *= 1.01;
-	min_z *= 1.01;
-	
-	std::vector<Vec3f> newPositions, newNormals;
-	
-	// Remplit newNormals, newPositions et oldToNew
-	simplifySubOct(max_x, max_y, max_z, min_x, min_y, min_z, n, newPositions, newNormals, oldToNew);
-	
-	// Apres calcul des nouveaux points et indices au dessus, echange indices anciens par les nouveaux
-	for(unsigned int n = 0; n < m_triangles.size(); n++) {
-		for(unsigned int corner = 0; corner < 3; corner++) {
-			m_triangles[n][corner] = oldToNew[ m_triangles[n][corner] ];
-		}
-	}
-	
-	// efface triangles degeneres
-	for(unsigned int n = 0; n < m_triangles.size(); n++) {		
-		if(	m_triangles[n][0] == m_triangles[n][1] ||
-			m_triangles[n][0] == m_triangles[n][2] ||
-			m_triangles[n][1] == m_triangles[n][2])
-
-			m_triangles.erase(m_triangles.begin() + n);
-	}
-	
-	m_positions.clear();
-	m_normals.clear();
-	
-	m_positions = newPositions;
-	m_normals = newNormals;
-	
-}
-
-//-----------------------------------------------------------------------------
-//-------------------------------simplify--------------------------------------
-//-----------------------------------------------------------------------------
-
-void Mesh::simplify(unsigned int resolution)
-{
-
-	float max_x, max_y, max_z, min_x, min_y, min_z;
-	std::vector<Vec3f> newPositions, newNormals;
-	std::vector<unsigned int> oldToNew;
-	newPositions.resize(resolution*resolution*resolution);
-	newNormals.resize(resolution*resolution*resolution);
-	oldToNew.resize(m_positions.size());
-	getMaxMin(max_x, max_y, max_z, min_x, min_y, min_z);
-	
-	max_x *= 1.01;
-	min_x *= 1.01;
-	
-	max_y *= 1.01;
-	min_y *= 1.01;
-	
-	max_z *= 1.01;
-	min_z *= 1.01;
-	
-	// cree cubes
-	std::vector< std::vector< std::vector<Cube> > > cubes(resolution, std::vector< std::vector<Cube> > (resolution, std::vector<Cube>(resolution)));
-	
-	for(unsigned int i = 0; i < resolution; i++)
-	{
-		for(unsigned int j = 0; j < resolution; j++)
-		{
-			for(unsigned int k = 0; k < resolution; k++)
-			{
-				cubes[i][j][k].element = 0;
-				
-				cubes[i][j][k].max_x = max_x - ((float)i/(float)resolution) * (max_x - min_x);
-				cubes[i][j][k].min_x = cubes[i][j][k].max_x - ((float)1/(float)resolution) * (max_x - min_x);
-				
-				cubes[i][j][k].max_y = max_y - ((float)j/(float)resolution) * (max_y - min_y);
-				cubes[i][j][k].min_y = cubes[i][j][k].max_y - ((float)1/(float)resolution) * (max_y - min_y);
-				
-				cubes[i][j][k].max_z = max_z - ((float)k/(float)resolution) * (max_z - min_z);
-				cubes[i][j][k].min_z = cubes[i][j][k].max_z - ((float)1/(float)resolution) * (max_z - min_z);
-			}
-		}
-	}
-	
-
-	// calcule position, normale et elements de chaque cube
-	for(unsigned int n = 0; n < m_positions.size(); n++) {
-	
-		for(unsigned int i = 0; i < resolution; i++)
-		{
-			for(unsigned int j = 0; j < resolution; j++)
-			{
-				for(unsigned int k = 0; k < resolution; k++)
-				{
-				
-					if(	m_positions[n][0] < cubes[i][j][k].max_x &&
-						m_positions[n][0] > cubes[i][j][k].min_x &&
-						
-						m_positions[n][1] < cubes[i][j][k].max_y &&
-						m_positions[n][1] > cubes[i][j][k].min_y &&
-						
-						m_positions[n][2] < cubes[i][j][k].max_z &&
-						m_positions[n][2] > cubes[i][j][k].min_z)
-					{
-						newPositions[i*resolution*resolution + j*resolution + k] += m_positions[n];
-						newNormals[i*resolution*resolution + j*resolution + k] += m_normals[n];
-						cubes[i][j][k].element++;
-						
-						// vecteur avec nouveaux indices en fonction des anciens
-						oldToNew[n] = i*resolution*resolution + j*resolution + k;
-						break;
-					}
-				}
-			}
-		}
-	}
-	
-	// divise par le nombre d'elements et normalise
-	for(unsigned int i = 0; i < resolution; i++)
-	{
-		for(unsigned int j = 0; j < resolution; j++)
-		{
-			for(unsigned int k = 0; k < resolution; k++)
-			{
-				if(cubes[i][j][k].element != 0)
-					newPositions[i*resolution*resolution + j*resolution + k] /= (float) cubes[i][j][k].element;
-					
-				normalize(newNormals[i*resolution*resolution + j*resolution + k]);
-			}
-		}
-	}
-
-	// echange anciens indices par les nouveaux
-	for(unsigned int n = 0; n < m_triangles.size(); n++) {
-		for(unsigned int corner = 0; corner < 3; corner++) {
-			m_triangles[n][corner] = oldToNew[ m_triangles[n][corner] ];
-		}
-	}
-	
-	// efface triangles degeneres
-	for(unsigned int n = 0; n < m_triangles.size(); n++) {
-		if(	m_triangles[n][0] == m_triangles[n][1] ||
-			m_triangles[n][0] == m_triangles[n][2] ||
-			m_triangles[n][1] == m_triangles[n][2])
-				m_triangles.erase(m_triangles.begin() + n);
-	}	
-	
-	m_positions = newPositions;
-	m_normals = newNormals;
-	
-}
-
-//-----------------------------------------------------------------------------
-//-------------------------------subdivide-------------------------------------
-//-----------------------------------------------------------------------------
-
-void Mesh::subdivide()
-{
-	unsigned int posSize = m_positions.size();
-	
-	// remplit map avec le milieu de chaque arrete
-	fillMiddle();
-	// fait le moyennage de chaque ancien point
-	triAveraging(posSize);
-	
-	// distribue les nouveaux points et cree les nouveaux triangles
-	subdivideTri();
-	
-	// fait nouveau calcul pour les plus proches voisins
-	recomputeNN();
-	// reclacule les normales
-	recomputeNormals();
-}
-
-void Mesh::recomputeNN()
-{
-	m_nneighbours.clear();
-	m_nneighbours.resize(m_positions.size());
-
-	// garde tous les triangles qui contiennent un point	
-	for(unsigned int tri = 0; tri < m_triangles.size(); tri++) {
-		for(unsigned int corner = 0; corner < 3 ; corner++)
-		{
-			m_nneighbours[m_triangles[tri][corner]].push_back(m_triangles[tri]);	
-		}
-	}
-}
-
-void Mesh::subdivideTri()
-{
-
-	std::vector<Triangle> newInd;
-	
-	// pour chaque triangle, garde tous les points au milieu de ses arretes
-	// et garde les triangles necessaires
-	for(unsigned int tri = 0; tri < m_triangles.size(); tri++) {
-		unsigned int mid1 = middle_points[Edge(m_triangles[tri][0], m_triangles[tri][1])];
-		unsigned int mid2 = middle_points[Edge(m_triangles[tri][1], m_triangles[tri][2])];
-		unsigned int mid3 = middle_points[Edge(m_triangles[tri][0], m_triangles[tri][2])];
-		
-		newInd.push_back( Triangle(m_triangles[tri][0] , mid1 , mid3 ) );
-		newInd.push_back( Triangle(m_triangles[tri][1] , mid2 , mid1 ) );
-		newInd.push_back( Triangle(m_triangles[tri][2] , mid3 , mid2 ) );
-		newInd.push_back( Triangle( mid1, mid2, mid3 ) );
-		
-	}
-	m_triangles = newInd;
-	
-}
-
-void Mesh::triAveraging(unsigned int limit)
-{
-	for(unsigned int p = 0; p < limit; p++) {
-		Vec3f newPos = Vec3f(0.0,0.0,0.0);
-		float alpha = ( 40 - pow( 3 + 2 * cos( 2 * M_PI / (float) m_positions.size() ) , 2 ) ) / 64.0;
-		
-		// prends points voisins au point en question
-		std::set<unsigned int> voisins = getVoisins(m_nneighbours[p], p);
-		
-		// fait la moyenne des positions avec le poids alpha
-		std::set<unsigned int>::iterator it;
-		for (it = voisins.begin(); it != voisins.end(); it++)
-		{
-				newPos += m_positions[*it] * alpha / (float) voisins.size();
-		}
-	
-		// recentre le point
-		newPos += m_positions[p] * (1 - alpha);
-	
-		// Correction pour arretes extraoridnaires
-		newPos = m_positions[p] + (newPos - m_positions[p]) * (5.0 / 3.0 - 8.0 / 3.0 * pow( 3.0/8.0 + 1.0/4.0 * cos(2 * 3.1416 / voisins.size()) , 2));
-		//newPos = m_positions[p] + (newPos - m_positions[p]) * (8.0 / (voisins.size() + 2.0));
-	
-		m_positions[p] = newPos;
-	}
-}
-
-void Mesh::fillMiddle()
-{
-	unsigned int limit = m_positions.size();
-	for (unsigned int i = 0; i < limit; i++)
-	{
-		std::set<unsigned int> voisins = getVoisins(m_nneighbours[i], i);
-	
-		// pour chaque voisin du point, garde milieu des deux si pas fait avant
-		std::set<unsigned int>::iterator it;
-		for (it = voisins.begin(); it != voisins.end(); it++)
-		{
-			if(middle_points.find(Edge(i,*it)) == middle_points.end())
-			{
-				Vec3f middle = Vec3f(0.0,0.0,0.0);
-		
-				// prends triangles qui appartiennent aux deux ensembles
-				// donc les triangles qui contiennent les deux points a la fois
-				std::vector<Triangle> inter = intersectTriVect(m_nneighbours[*it], m_nneighbours[i]);
-				
-				// calcule contribution selon poids donnes
-				std::vector<Triangle>::iterator itInter;
-				for (itInter = inter.begin(); itInter != inter.end(); itInter++)
-				{
-					for(unsigned int j = 0; j < 3; j++)
-					{
-						if((*itInter)[j] == *it || (*itInter)[j] == i)
-							middle += m_positions[(*itInter)[j]] * 3 / (inter.size()*8.0);
-						else
-							middle += m_positions[(*itInter)[j]] * 1 / (inter.size()*4.0);
-					}
-				}
-		
-				m_positions.push_back( middle );			
-				middle_points[Edge(i,*it)] = m_positions.size() - 1;
-			}
-		}
-	}
-}
-
-// donne intersection de deux ensembles de triangles
-std::vector<Triangle> Mesh::intersectTriVect(std::vector<Triangle> v1, std::vector<Triangle> v2)
-{
-	std::vector<Triangle> inter;
-	
-	std::vector<Triangle>::iterator it1;
-	for (it1 = v1.begin(); it1 != v1.end(); it1++)
-	{
-		std::vector<Triangle>::iterator it2;
-		for (it2 = v2.begin(); it2 != v2.end(); it2++)
-		{
-			if(((*it1)[0] == (*it2)[0]) && ((*it1)[1] == (*it2)[1]) && ((*it1)[2] == (*it2)[2]))
-				inter.push_back(*it1);
-		}
-    }
-    
-    return inter;
-}
 
 // donne points voisins en sachant les triangles qui contiennent le point en question
 std::set<unsigned int> Mesh::getVoisins(std::vector<Triangle> tri, unsigned int point) {
@@ -1240,68 +613,6 @@ std::set<unsigned int> Mesh::getVoisins(std::vector<Triangle> tri, unsigned int 
 	}
 
 	return voisins;
-}
-
-// calcule barycentre de tous les points
-Vec3f Mesh::calculerBarycentre(std::set<unsigned int> points) {
-	float sumX = 0;
-	float sumY = 0;
-	float sumZ = 0;
-	
-	std::set<unsigned int>::iterator it;
-	for (it = points.begin(); it != points.end(); it++)
-	{
-		sumX += m_positions[*it][0];
-		sumY += m_positions[*it][1];
-		sumZ += m_positions[*it][2];
-	}
-
-	return Vec3f(sumX / points.size(), sumY / points.size(), sumZ / points.size());
-}
-
-// calcule barycentre d'un triangle
-Vec3f Mesh::calculerBarycentreTri(Triangle tri) {
-	float sumX = 0;
-	float sumY = 0;
-	float sumZ = 0;
-
-	for (unsigned int i = 0; i <= 3; i++)
-	{
-		sumX += m_positions[tri[i]][0];
-		sumY += m_positions[tri[i]][1];
-		sumZ += m_positions[tri[i]][2];
-	}
-
-	return Vec3f(sumX / 3.0, sumY / 3.0, sumZ / 3.0);
-}
-
-// calcule barycentre geometrique pour laplacien geometrique
-Vec3f Mesh::calculerBarycentreGeom(unsigned int point, std::set<unsigned int> points, std::vector<Triangle> triangles) {
-	float sumX = 0.0f;
-	float sumY = 0.0f;
-	float sumZ = 0.0f;
-	float sumCot = 0.0f;
-	
-	std::set<unsigned int>::iterator it;
-	for (it = points.begin(); it != points.end(); it++)
-	{
-		std::vector<Triangle> triContain = containPoint(*it, triangles);
-		float cot = 0.0f;
-		
-		// calcul du poids avec les cotangentes
-		std::vector<Triangle>::iterator triIt;
-		for (triIt = triContain.begin(); triIt != triContain.end(); ++triIt)
-			if(!std::isnan(cotan(point, *it, *triIt)) && cotan(point, *it, *triIt) < pow(10,3))
-				cot += cotan(point, *it, *triIt);
-			
-		sumX += cot*m_positions[*it][0];
-		sumY += cot*m_positions[*it][1];
-		sumZ += cot*m_positions[*it][2];
-		
-		sumCot += cot;
-	}
-
-	return Vec3f(sumX , sumY, sumZ) / sumCot;
 }
 
 // retourne triangles qui contiennent le point
@@ -1342,62 +653,6 @@ float Mesh::cotan(unsigned int point1, unsigned int point2, Triangle triangle)
 	return dot(-e1, e2) / sqrt(e1.squaredLength() * e2.squaredLength() - pow(dot(e1, e2) , 2));
 	
 }
-
-//-----------------------------------------------------------------------------
-//---------------------------------addFloor------------------------------------
-//-----------------------------------------------------------------------------
-
-// Ajoute un des deux types de sol
-void Mesh::addFloor (unsigned int type)	{
-
-	float minY, temp;
-	getMaxMin(temp, temp, temp, temp, minY, temp);
-	unsigned int offset = m_positions.size();
-
-	if(type == 1) {
-		for(unsigned int i = 0 ; i < 20 ; i++)	{
-			for(unsigned int j = 0 ; j < 20 ; j++)	{
-					m_positions.push_back( Vec3f( (j * 0.2) - 2 , minY , 2 - (i * 0.2) ) );
-			}		
-		}
-		for(unsigned int i = 0 ; i < 20 - 1 ; i++)	{
-			for(unsigned int j = 0 ; j < 20 - 1 ; j++)	{
-					m_triangles.push_back( Triangle(offset + i * 20 + j, offset + i * 20 + j + 1, offset + (i + 1) * 20 + j) );
-					m_triangles.push_back( Triangle(offset + i * 20 + j + 1, offset + (i + 1) * 20 + j + 1, offset + (i + 1) * 20 + j) );
-			}		
-		}
-		
-	}
-	else if(type == 2) {
-		for(unsigned int i = 0 ; i < 200 ; i++)	{
-			for(unsigned int j = 0 ; j < 200 ; j++)	{
-					m_positions.push_back( Vec3f( (j * 0.02) - 2 , minY , 2 - (i * 0.02) ) );
-			}		
-		}
-		for(unsigned int i = 0 ; i < 200 - 1 ; i++)	{
-			for(unsigned int j = 0 ; j < 200 - 1 ; j++)	{
-					m_triangles.push_back( Triangle(offset + i * 200 + j, offset + i * 200 + j + 1, offset + (i + 1) * 200 + j) );
-					m_triangles.push_back( Triangle(offset + i * 200 + j + 1, offset + (i + 1) * 200 + j + 1, offset + (i + 1) * 200 + j) );
-			}		
-		}
-	}	
-	
-	recomputeNormals ();
-}
-
-// Enleve le sol
-void Mesh::removeFloor (unsigned int type)	{
-	if(type == 1) {
-		m_positions.resize(m_positions.size() - 20 * 20);
-		m_triangles.resize(m_triangles.size() - 2 * (20 - 1) * (20 - 1));
-	}
-	else if(type == 2) {
-		m_positions.resize(m_positions.size() - 200 * 200);
-		m_triangles.resize(m_triangles.size() - 2 * (200 - 1) * (200 - 1));
-	}
-}
-
-
 
 void Mesh::centerAndScaleToUnit () {
     Vec3f c;

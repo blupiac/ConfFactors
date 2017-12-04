@@ -88,11 +88,11 @@ private:
     std::vector<Vec3f> m_positions;
     std::vector<Vec3f> m_normals;
     std::vector<float> m_confFacts;
+    std::vector<float> m_gaussDiff;
     std::vector<float> m_areas;
     std::vector<unsigned int> m_sortedAreasIdx;
     #ifdef DEBUG
     std::vector<float> m_gausscurv;
-    std::vector<float> m_laplacian;
     #endif
     std::vector<Bin> signature;
     std::vector<Triangle> m_triangles;
@@ -102,7 +102,7 @@ private:
     std::map <std::pair<Triangle, unsigned int>, float> cotans;
     float totalArea, totalCurv, totalConf, minConf, maxConf;
     #ifdef DEBUG
-    float minLap, maxLap, minGauss, maxGauss;
+    float minGauss, maxGauss;
     #endif
     
     float getGaussCurv(unsigned int i);
@@ -110,13 +110,7 @@ private:
 	float getTargetCurv(unsigned int i);
     float getArea(unsigned int i);
     float getArea(Triangle tri);
-	float getLaplacian(unsigned int i);
-    float getAMixed(unsigned int i);
-    float voronoiRegion(unsigned int ptIdx);
-    float voronoiArea(unsigned int ptIdx, Triangle t);
-    bool isObtuse(Triangle t);
     bool isBorder(unsigned int ptIdx);
-    void purgeConf(float coef);
     Eigen::SparseMatrix<float> getLapMatrix();
     std::vector<float> solveConfFactor(std::vector<float> gaussDiff, Eigen::SparseMatrix<float> laplacian);
 
@@ -127,30 +121,11 @@ private:
 	float interpConfFactor(Vec3f point, unsigned int triIdx);
 	void incrSignature(float confFact, float min, float max, int binMin, int binMax);
 
-    void getMaxMin(float& max_x, float& max_y, float& max_z, float& min_x,
-				float& min_y, float& min_z);
-				
-	std::vector<unsigned int> allInside(float max_x, float max_y, float max_z,
-										float min_x, float min_y, float min_z);
-										
-	void simplifySubOct(float max_x, float max_y, float max_z,
-							float min_x, float min_y, float min_z,
-							unsigned int n, std::vector<Vec3f>& newPositions, 
-							std::vector<Vec3f>& newNormals, std::vector<unsigned int>& oldToNew);
-	
+    // helpers
 	std::set<unsigned int> getVoisins(std::vector<Triangle> tri, unsigned int point);
-    Vec3f calculerBarycentre(std::set<unsigned int> points);
-    Vec3f calculerBarycentreTri(Triangle tri);
-    Vec3f calculerBarycentreGeom(unsigned int point, std::set<unsigned int> points, std::vector<Triangle> triangles);
-    
     std::vector<Triangle> containPoint(unsigned int point, std::vector<Triangle> triangles);
     float cotan(unsigned int point1, unsigned int point2, Triangle triangle);
-    
-    void fillMiddle();
-    void triAveraging(unsigned int limit);
-    void subdivideTri();
     void recomputeNN();
-
     std::vector<Triangle> intersectTriVect(std::vector<Triangle> v1, std::vector<Triangle> v2);
     
 };
