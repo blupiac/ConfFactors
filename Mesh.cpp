@@ -100,7 +100,15 @@ void Mesh::loadOFF (const std::string & filename) {
         
         float area = getArea(m_triangles[i]);
 
-        m_areas[i] = area;
+        // cumulative area array to make binary search possible later
+        if(i == 0)
+        {
+        	m_areas[i] = area;
+        }
+        else
+        {
+        	m_areas[i] = area + m_areas[i - 1];
+        }
 		totalArea += area;
     }
     in.close ();
@@ -571,18 +579,18 @@ void Mesh::printSignature(std::vector<Bin> sig, unsigned int totalItems)
 	outfile.close();
 }
 
+// https://stackoverflow.com/questions/1761626/weighted-random-numbers
+// http://forums.codeguru.com/showthread.php?320298-Searching-a-list-for-quot-closest-quot-floating-point-value-using-STL
+// TODO? https://en.wikipedia.org/wiki/Alias_method
+
 int Mesh::getRandTri()
 {
 	float r = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
 	float randArea = r * totalArea;
-	unsigned int i = 0;
 
-	while((randArea - m_areas[m_sortedAreasIdx[i]])>= 0)
-	{
-		randArea -= m_areas[m_sortedAreasIdx[i]];
-		i++;
-	}
-	return i;
+
+	std::vector<float>::iterator upIt = std::upper_bound(m_areas.begin(), m_areas.end(), randArea, FloatLessThan());;
+	return upIt - m_areas.begin();
 }
 
 // http://www.cs.princeton.edu/~funk/tog02.pdf

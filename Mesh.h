@@ -42,6 +42,15 @@ struct Bin
     float occur;
 };
 
+struct FloatLessThan
+{
+    bool operator() (const float & left, const float & right)
+    {
+        return left < right;
+    }
+};
+
+
 /// A Mesh class, storing a list of vertices and a list of triangles indexed over it.
 class Mesh {
 public:
