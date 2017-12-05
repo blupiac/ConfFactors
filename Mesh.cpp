@@ -57,7 +57,7 @@ enum Dim { x, y, z };
 void Mesh::loadOFF (const std::string & filename) {
 
 	#ifdef TIMER
-	std::clock_t tInit = std::clock();
+	tInit = std::clock();
 	std::cout << "Computation begins." << std::endl;
 	#endif
 
@@ -155,6 +155,10 @@ void Mesh::calculateConfFact ()
         totalCurv -= m_gaussDiff[i];
     }
 
+    #ifdef TIMER
+	std::cout << "Gauss curv ended: " << (std::clock() - tInit) / (double)CLOCKS_PER_SEC << " seconds" << std::endl;
+	#endif
+
     // calculate target curv, and join the diff in a vector
 	for (unsigned int i = 0; i < m_positions.size (); i++) 
 	{
@@ -164,13 +168,25 @@ void Mesh::calculateConfFact ()
 		m_gaussDiff[i] += targCurv;
 	}
 
+	#ifdef TIMER
+	std::cout << "Target curv ended: " << (std::clock() - tInit) / (double)CLOCKS_PER_SEC << " seconds" << std::endl;
+	#endif
+
 	// laplacian matrix
 	Eigen::SparseMatrix<float> lapMatrix;
 	// rough estimation of non-zero elements: each vertex will have 6 neighbours plus itself
 	lapMatrix.reserve(m_positions.size() * 7);
 	lapMatrix = getLapMatrix();
 
+	#ifdef TIMER
+	std::cout << "Lap matrix fill ended: " << (std::clock() - tInit) / (double)CLOCKS_PER_SEC << " seconds" << std::endl;
+	#endif
+
 	m_confFacts = solveConfFactor(m_gaussDiff, lapMatrix);
+
+	#ifdef TIMER
+	std::cout << "ConfFactor equation solving ended: " << (std::clock() - tInit) / (double)CLOCKS_PER_SEC << " seconds" << std::endl;
+	#endif
 
 	auto result = std::minmax_element(m_confFacts.begin(), m_confFacts.end());
 
@@ -509,10 +525,18 @@ void Mesh::calculateSignature ()
 		incrSignature(randConfFactor, minConf, maxConf, -99, 100);
 	}
 
+	#ifdef TIMER
+	std::cout << "Point generation ended: " << (std::clock() - tInit) / (double)CLOCKS_PER_SEC << " seconds" << std::endl;
+	#endif
+
 	for (unsigned int i = 0; i < m_positions.size (); i++) 
 	{
 		incrSignature(m_confFacts[i], minConf, maxConf, -99, 100);
 	}
+
+	#ifdef TIMER
+	std::cout << "Bin filling ended: " << (std::clock() - tInit) / (double)CLOCKS_PER_SEC << " seconds" << std::endl;
+	#endif
 
 	printSignature(signature, m_positions.size());
 }

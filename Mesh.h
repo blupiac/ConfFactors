@@ -25,6 +25,7 @@
 #include "Triangle.h"
 
 //#define DEBUG
+#define TIMER
 
 struct Edge {
  unsigned int i , j;
@@ -91,6 +92,9 @@ private:
     float totalArea, totalCurv, totalConf, minConf, maxConf;
     #ifdef DEBUG
     float minGauss, maxGauss;
+    #endif
+    #ifdef TIMER
+    std::clock_t tInit;
     #endif
     
     float getGaussCurv(unsigned int i);
