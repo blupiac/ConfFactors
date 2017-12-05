@@ -406,13 +406,22 @@ Eigen::SparseMatrix<float> Mesh::getLapMatrix()
 			if(triContain.size() == 2)
 			{
 				// calculate cot on both angles wanted
-				std::vector<unsigned int>::iterator triIt;
-				for (triIt = triContain.begin(); triIt != triContain.end(); ++triIt)
+				float cotA = cotan(i, *ptIt, triContain[0]);
+				float cotB = cotan(i, *ptIt, triContain[1]);
+				float cotSum = cotA + cotB;
+				if(!std::isnan(cotSum) && (cotSum) < pow(10,5))
 				{
-					float cot = cotan(i, *ptIt, *triIt);
-					if(!std::isnan(cot) && cot < pow(10,3))
-						cots += cot;
+					cots += cotSum;
 				}
+				else
+				{
+					std::cerr << "Point with NaN or impossible cotan: " << i << std::endl;
+				}
+			}
+
+			if(abs(cots) == 0)
+			{
+				continue;
 			}
 
 			// divide by 2 because each cotan gets added twice 

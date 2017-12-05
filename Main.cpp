@@ -34,7 +34,7 @@
 
 static const unsigned int DEFAULT_SCREENWIDTH = 1024;
 static const unsigned int DEFAULT_SCREENHEIGHT = 768;
-static const std::string DEFAULT_MESH_FILE ("models/longDancer.off");
+static const std::string DEFAULT_MESH_FILE ("models/663_al7.off");
 
 // Rayons envoyes en AO, et portee maximale pour une intersection
 static const unsigned int AO_SAMPLES = 10;
