@@ -15,11 +15,11 @@
 #include <map>
 #include <set>
 #include <algorithm>
+#include <ctime>
 
 #include <eigen3/Eigen/LU>
-#include <eigen3/Eigen/Geometry>
-#include <eigen3/Eigen/Eigenvalues>
 #include <eigen3/Eigen/Sparse>
+#include <eigen3/Eigen/IterativeLinearSolvers>
 
 #include "Vec3.h"
 #include "Triangle.h"
@@ -101,6 +101,7 @@ private:
     bool isBorder(unsigned int ptIdx);
     Eigen::SparseMatrix<float> getLapMatrix();
     std::vector<float> solveConfFactor(std::vector<float> gaussDiff, Eigen::SparseMatrix<float> laplacian);
+    std::vector<float> solveConfFactorCG(std::vector<float> gaussDiff, Eigen::SparseMatrix<float> laplacian);
 
 	void initializeSignature(int min, int max);
     void printSignature(std::vector<Bin> sig, unsigned int totalItems);

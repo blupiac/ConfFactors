@@ -20,6 +20,7 @@
 #include <assert.h>
 
 //#define DEBUG
+#define TIMER
 
 #define MED_X min_x + (max_x - min_x)/2
 #define MED_Y min_y + (max_y - min_y)/2
@@ -54,6 +55,12 @@ enum Dim { x, y, z };
 //-----------------------------------------------------------------------------
 
 void Mesh::loadOFF (const std::string & filename) {
+
+	#ifdef TIMER
+	std::clock_t tInit = std::clock();
+	std::cout << "Computation begins." << std::endl;
+	#endif
+
     clear ();
 	ifstream in (filename.c_str ());
     if (!in) 
@@ -107,8 +114,17 @@ void Mesh::loadOFF (const std::string & filename) {
                 [&](int i1, int i2) { return m_areas[i1] < m_areas[i2]; } );
 
 	// fill confFactor vector
+	#ifdef TIMER
+	std::cout << "Initialization ended: " << (std::clock() - tInit) / (double)CLOCKS_PER_SEC << " seconds" << std::endl;
+	#endif
     calculateConfFact();
+    #ifdef TIMER
+	std::cout << "ConfFact calculation ended: " << (std::clock() - tInit) / (double)CLOCKS_PER_SEC << " seconds" << std::endl;
+	#endif
     calculateSignature();
+    #ifdef TIMER
+	std::cout << "Signature generation ended: " << (std::clock() - tInit) / (double)CLOCKS_PER_SEC << " seconds" << std::endl;
+	#endif
 
     centerAndScaleToUnit ();
     recomputeNormals ();
@@ -152,10 +168,6 @@ void Mesh::calculateConfFact ()
 	Eigen::SparseMatrix<float> lapMatrix;
 	// rough estimation of non-zero elements: each vertex will have 6 neighbours plus itself
 	lapMatrix.reserve(m_positions.size() * 7);
-
-	// necessary, otherwise eigen will make a compressed copy when using sparseLU
-	lapMatrix.makeCompressed();
-
 	lapMatrix = getLapMatrix();
 
 	m_confFacts = solveConfFactor(m_gaussDiff, lapMatrix);
@@ -375,7 +387,8 @@ Eigen::SparseMatrix<float> Mesh::getLapMatrix()
 {
 	// triples to be inserted later on sparse matrix
 	std::vector<Eigen::Triplet<float>> triplets;
-	triplets.reserve(m_positions.size() * 4);
+	// another rough estimation: each vertex has 6 neighbours
+	triplets.reserve(m_positions.size() * 6 * 4);
 
 	for (unsigned int i = 0; i < m_positions.size (); i++) 
 	{
@@ -413,6 +426,11 @@ Eigen::SparseMatrix<float> Mesh::getLapMatrix()
 			triplets.push_back(Eigen::Triplet<float>(i, i, cots));
 			triplets.push_back(Eigen::Triplet<float>(*ptIt, *ptIt, cots));
 		}
+
+		if(neighPoint.size() == 0)
+		{
+			std::cerr << "Point " << i << " has no neighbours." << std::endl;
+		}
 	}
 
 	// initializing sparse matrix
@@ -441,6 +459,24 @@ std::vector<float> Mesh::solveConfFactor(std::vector<float> gaussDiff, Eigen::Sp
 	}
 
 	confFact = solverLap.solve(gaussDiffVect);
+	std::vector<float> res(&confFact[0], confFact.data()+confFact.cols()*confFact.rows());
+	return res;
+}
+
+// TODO: multi threading
+// recommended solver for 3D poisson eq. : https://eigen.tuxfamily.org/dox/group__TopicSparseSystems.html
+std::vector<float> Mesh::solveConfFactorCG(std::vector<float> gaussDiff, Eigen::SparseMatrix<float> laplacian)
+{
+	Eigen::ConjugateGradient<Eigen::SparseMatrix<float>, Eigen::Lower|Eigen::Upper> cgLap;
+	Eigen::VectorXf gaussDiffVect = Eigen::Map<Eigen::VectorXf, Eigen::Unaligned>(gaussDiff.data(), gaussDiff.size());
+	Eigen::VectorXf confFact;
+
+	cgLap.compute(laplacian);
+
+	//std::cout << "#iterations:     " << cgLap.iterations() << std::endl;
+	//std::cout << "estimated error: " << cgLap.error()      << std::endl;
+	
+	confFact = cgLap.solve(gaussDiffVect);
 	std::vector<float> res(&confFact[0], confFact.data()+confFact.cols()*confFact.rows());
 	return res;
 }
@@ -496,7 +532,7 @@ void Mesh::printSignature(std::vector<Bin> sig, unsigned int totalItems)
 	{
 		float occurPercent = sig[i].occur / (float) totalItems;
 		outfile << sig[i].idx << ", " << occurPercent << "\n";
-		std::cout << "Bin " << sig[i].idx << ": " << occurPercent << " occurences: " << sig[i].occur << std::endl;
+		//std::cout << "Bin " << sig[i].idx << ": " << occurPercent << " occurences: " << sig[i].occur << std::endl;
 	}
 
 	outfile.close();
