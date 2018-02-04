@@ -34,7 +34,7 @@
 
 static const unsigned int DEFAULT_SCREENWIDTH = 1024;
 static const unsigned int DEFAULT_SCREENHEIGHT = 768;
-static const std::string DEFAULT_MESH_FILE ("models/cow.off");
+static const std::string DEFAULT_MESH_FILE ("models/armadillo0.off.off");
 
 // Rayons envoyes en AO, et portee maximale pour une intersection
 static const unsigned int AO_SAMPLES = 10;
@@ -189,97 +189,13 @@ void init (const char * modelFilename) {
 	glLineWidth (2.0); // Set the width of edges in GL_LINE polygon mode
 
     //glClearColor (0.0f, 0.0f, 0.0f, 1.0f); // Background color
-    glClearColor (0.0f, 0.5f, 0.8f, 1.0f); // Background color    
+    glClearColor (1.0f, 1.0f, 1.0f, 1.0f); // Background color    
 
 	mesh.loadOFF (modelFilename);
 
     colorResponses.resize(mesh.positions().size());
 
     camera.resize (DEFAULT_SCREENWIDTH, DEFAULT_SCREENHEIGHT);
-    
-    #ifdef USE_SHADER
-    try {
-        #ifdef USE_NPR
-        glProgram = GLProgram::genVFProgram ("Simple GL Program", "shader.vert", "toon.frag");
-        #else
-        glProgram = GLProgram::genVFProgram ("Simple GL Program", "shader.vert", "shader.frag");
-        #endif
-		glProgram->use (); // Activate the shader program
-    } catch (Exception & e) {
-
-        cerr << e.msg () << endl;
-
-    }
-    
-   	glProgram->setUniform3f("lightPos", lights[0].pos()[x] , lights[0].pos()[y], lights[0].pos()[z]);
-   	glProgram->setUniform3f("lightCol", lights[0].color()[r] , lights[0].color()[g], lights[0].color()[b]);
-   	glProgram->setUniform1f("lightIntens", lights[0].intensity());
-   	#ifndef USE_NPR
-   	glProgram->setUniform1i("mode", mode);
-   	#endif
-
-   	#endif
-
-}
-
-// Calcule attenuation de la lumiere
-float attLum (float dist, float intens) {
-	float ac = 0.011;
-	float al = 0.008;
-	float aq = 0.002;
-	
-    return intens / (ac + al * dist + aq * pow(dist, 2));
-}
-
-float phong (Vec3f n, Vec3f wh) {
-	float shinyness = 15.0f;
-	
-	if(dot(n, wh) < 0)
-		return 0;
-	
-	return pow(dot(n, wh), shinyness);
-}
-
-float cooktorrance (Vec3f n, Vec3f wh, Vec3f wi, Vec3f w0) {
-	
-	float alpha = 0.8;
-	float refrac = 0.3;
-	
-	float D = ( exp( (pow(dot(n,wh), 2) - 1) / (pow(alpha, 2) * pow(dot(n,wh), 2) )) ) / ( M_PI * pow(alpha,2) * pow( dot(n, wh) , 4) );
-	float F = refrac + (1 - refrac) * pow(1 - std::max(0.0f, dot(wi, wh)), 5);
-	float G = std::min(1.0f, std::min((2*dot(n,wh)*dot(n,wi))/(dot(w0,wh)), (2*dot(n,wh)*dot(n,w0))/(dot(w0,wh))));
-	
-	if(D < 0 || F < 0 || G < 0)
-		return 0;
-	
-	return D*F*G;
-
-}
-
-float gsmith(Vec3f n, Vec3f w, float alpha)
-{
-	return (2*dot(n,w))/(dot(n,w) + sqrt(pow(alpha,2) + (1-pow(alpha, 2) * pow(dot(n, w),2))));
-}
-
-float gschlick(Vec3f n, Vec3f w, float alpha)
-{
-	float k = alpha * sqrt(2/M_PI);
-	return dot(n,w)/(dot(n,w)*(1-k)+k);
-}
-
-float ddx (Vec3f n, Vec3f wh, Vec3f wi, Vec3f w0) {
-	
-	float alpha = 0.9;
-	float refrac = 0.9;
-	
-	float D = pow(alpha,2) / ( M_PI * pow((1.0 + (pow(alpha,2)-1) * pow(dot(n, wh), 2)),2));
-	float F = refrac + (1 - refrac) * pow(1 - std::max(0.0f, dot(wi, wh)), 5);
-	float G = gsmith(n, wi, alpha) * gsmith(n, w0, alpha);
-	
-	if(D < 0 || F < 0 || G < 0)
-		return 0;
-
-	return D*F*G;
 
 }
 

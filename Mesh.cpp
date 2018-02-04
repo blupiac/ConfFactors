@@ -12,7 +12,6 @@
 #include "Mesh.h"
 #include <iostream>
 #include <fstream>
-#include <fstream>
 #include <cstdlib>
 #include <string>
 #include <algorithm>
@@ -142,8 +141,7 @@ void Mesh::loadOFF (const std::string & filename) {
 //--------------------------calculateConfFact----------------------------------
 //-----------------------------------------------------------------------------
 
-void Mesh::calculateConfFact () 
-{
+void Mesh::calculateConfFact () {
 	minConf = 1e10;
 	maxConf = -1e10;
 
@@ -202,8 +200,7 @@ void Mesh::calculateConfFact ()
 	maxConf = m_confFacts[result.second - m_confFacts.begin()];
 }
 
-float Mesh::normalizeConf(unsigned int confIdx)
-{
+float Mesh::normalizeConf(unsigned int confIdx) {
 	//std::cout << "this conf: " << m_confFacts[confIdx] << " min conf: " << minConf << " max conf: " << maxConf << std::endl;
 	//std::cout << "normalized: " << (m_confFacts[confIdx] - minConf) / (maxConf - minConf) << std::endl;
 
@@ -212,15 +209,13 @@ float Mesh::normalizeConf(unsigned int confIdx)
 
 #ifdef DEBUG
 
-float Mesh::normalizeGausscurv(unsigned int gaussIdx)
-{
+float Mesh::normalizeGausscurv(unsigned int gaussIdx) {
 	return (m_gausscurv[gaussIdx] - minGauss) / (maxGauss - minGauss);
 }
 
 #endif
 
-float Mesh::getGaussCurv(unsigned int pointIdx)
-{
+float Mesh::getGaussCurv(unsigned int pointIdx) {
 	std::vector<unsigned int> neighbours = m_nneighbours[pointIdx];
 	float totalAngle = 0;
 	float curv;
@@ -257,8 +252,7 @@ float Mesh::getGaussCurv(unsigned int pointIdx)
 	return curv;
 }
 
-bool Mesh::isBorder(unsigned int ptIdx)
-{
+bool Mesh::isBorder(unsigned int ptIdx) {
 	std::set<unsigned int> neighPoint = getVoisins(m_nneighbours[ptIdx], ptIdx);
 
 	std::set<unsigned int>::iterator ptIt;
@@ -285,8 +279,7 @@ bool Mesh::isBorder(unsigned int ptIdx)
 }
 
 // get angle between 3 points in a 3d space
-float Mesh::getAngle(Triangle tri, int pointIdx)
-{
+float Mesh::getAngle(Triangle tri, int pointIdx) {
 	// https://stackoverflow.com/questions/19729831/angle-between-3-points-in-3d-space
 
 	Vec3f v1, v2;
@@ -344,8 +337,7 @@ float Mesh::getAngle(Triangle tri, int pointIdx)
 	return acos(res);
 }
 
-float Mesh::getTargetCurv(unsigned int i)
-{
+float Mesh::getTargetCurv(unsigned int i) {
 	std::vector<unsigned int> tris = m_nneighbours[i];
 	float area = 0;
 
@@ -357,8 +349,7 @@ float Mesh::getTargetCurv(unsigned int i)
 	return totalCurv * area / totalArea;
 }
 
-float Mesh::getArea(unsigned int i)
-{
+float Mesh::getArea(unsigned int i) {
     // https://www.opengl.org/discussion_boards/showthread.php/159771-How-can-I-find-the-area-of-a-3D-triangle
     // uses a sqrt, might look for smth else later
 
@@ -380,8 +371,7 @@ float Mesh::getArea(unsigned int i)
 	return 0.5 * sqrt(v3[x]*v3[x] + v3[y]*v3[y] + v3[z]*v3[z]);
 }
 
-float Mesh::getArea(Triangle tri)
-{
+float Mesh::getArea(Triangle tri) {
     // https://www.opengl.org/discussion_boards/showthread.php/159771-How-can-I-find-the-area-of-a-3D-triangle
     // uses a sqrt, might look for smth else later
 
@@ -407,8 +397,7 @@ float Mesh::getArea(Triangle tri)
 
 // based, but far from copied from:
 // https://github.com/Sunwinds/3D-Geometric-Features/blob/master/ConformalFactor/CalConformalFactor.h
-Eigen::SparseMatrix<float> Mesh::getLapMatrix()
-{
+Eigen::SparseMatrix<float> Mesh::getLapMatrix() {
 	// triples to be inserted later on sparse matrix
 	std::vector<Eigen::Triplet<float>> triplets;
 	// another rough estimation: each vertex has 6 neighbours
@@ -449,7 +438,6 @@ Eigen::SparseMatrix<float> Mesh::getLapMatrix()
 			}
 
 			// divide by 2 because each cotan gets added twice 
-			// TODO: maybe there's a way to only do this once?
 			cots /= 2.0;
 
 			// add cots to both matrix elements
@@ -475,8 +463,7 @@ Eigen::SparseMatrix<float> Mesh::getLapMatrix()
 }
 
 // https://scicomp.stackexchange.com/questions/21343/solving-linear-equations-using-eigen
-std::vector<float> Mesh::solveConfFactor(std::vector<float> gaussDiff, Eigen::SparseMatrix<float> laplacian)
-{
+std::vector<float> Mesh::solveConfFactor(std::vector<float> gaussDiff, Eigen::SparseMatrix<float> laplacian) {
 	Eigen::SparseLU<Eigen::SparseMatrix<float> > solverLap;
 	Eigen::VectorXf gaussDiffVect = Eigen::Map<Eigen::VectorXf, Eigen::Unaligned>(gaussDiff.data(), gaussDiff.size());
 	Eigen::VectorXf confFact;
@@ -496,18 +483,19 @@ std::vector<float> Mesh::solveConfFactor(std::vector<float> gaussDiff, Eigen::Sp
 	return res;
 }
 
-// TODO: multi threading
+// benchmarked this equation agains SparseLU and it did much worse on meshes from 1KB to 120MB, not sure I want to keet it
+// TODO? multi threading
 // recommended solver for 3D poisson eq. : https://eigen.tuxfamily.org/dox/group__TopicSparseSystems.html
-std::vector<float> Mesh::solveConfFactorCG(std::vector<float> gaussDiff, Eigen::SparseMatrix<float> laplacian)
-{
+std::vector<float> Mesh::solveConfFactorCG(std::vector<float> gaussDiff, Eigen::SparseMatrix<float> laplacian) {
 	Eigen::ConjugateGradient<Eigen::SparseMatrix<float>, Eigen::Lower|Eigen::Upper> cgLap;
 	Eigen::VectorXf gaussDiffVect = Eigen::Map<Eigen::VectorXf, Eigen::Unaligned>(gaussDiff.data(), gaussDiff.size());
 	Eigen::VectorXf confFact;
 
+	cgLap.setMaxIterations(10000);
 	cgLap.compute(laplacian);
 
-	//std::cout << "#iterations:     " << cgLap.iterations() << std::endl;
-	//std::cout << "estimated error: " << cgLap.error()      << std::endl;
+	std::cout << "#iterations:     " << cgLap.iterations() << std::endl;
+	std::cout << "estimated error: " << cgLap.error()      << std::endl;
 	
 	confFact = cgLap.solve(gaussDiffVect);
 	std::vector<float> res(&confFact[0], confFact.data()+confFact.cols()*confFact.rows());
@@ -518,10 +506,8 @@ std::vector<float> Mesh::solveConfFactorCG(std::vector<float> gaussDiff, Eigen::
 //-------------------------calculateSignature----------------------------------
 //-----------------------------------------------------------------------------
 
-// TODO: memory effective function, orders triangles indexes by area size,
 // calculates probability
-void Mesh::calculateSignature () 
-{
+void Mesh::calculateSignature () {
 	initializeSignature(-99, 100);
 
 	for (unsigned int i = 0; i < 5 * m_positions.size (); i++) 
@@ -546,11 +532,10 @@ void Mesh::calculateSignature ()
 	std::cout << "Bin filling ended: " << (std::clock() - tInit) / (double)CLOCKS_PER_SEC << " seconds" << std::endl;
 	#endif
 
-	printSignature(signature, m_positions.size());
+	printSignature(signature, m_positions.size() * 6); // *6 to account for added vertexes
 }
 
-void Mesh::initializeSignature(int min, int max)
-{
+void Mesh::initializeSignature(int min, int max) {
 	signature.resize (max - min + 1);
 
 	for(unsigned int i = 0; i < signature.size(); i ++)
@@ -562,18 +547,16 @@ void Mesh::initializeSignature(int min, int max)
 	}
 }
 
-void Mesh::printSignature(std::vector<Bin> sig, unsigned int totalItems)
-{
+void Mesh::printSignature(std::vector<Bin> sig, unsigned int totalItems) {
 	ofstream outfile;
     outfile.open ("output/confFact.csv");
 
     outfile << "binNumber, occurence\n";
 
-	for(unsigned int i = 0; i < signature.size(); i ++)
+	for(unsigned int i = 0; i < sig.size(); i ++)
 	{
 		float occurPercent = sig[i].occur / (float) totalItems;
 		outfile << sig[i].idx << ", " << occurPercent << "\n";
-		//std::cout << "Bin " << sig[i].idx << ": " << occurPercent << " occurences: " << sig[i].occur << std::endl;
 	}
 
 	outfile.close();
@@ -583,8 +566,7 @@ void Mesh::printSignature(std::vector<Bin> sig, unsigned int totalItems)
 // http://forums.codeguru.com/showthread.php?320298-Searching-a-list-for-quot-closest-quot-floating-point-value-using-STL
 // TODO? https://en.wikipedia.org/wiki/Alias_method
 
-int Mesh::getRandTri()
-{
+int Mesh::getRandTri() {
 	float r = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
 	float randArea = r * totalArea;
 
@@ -595,8 +577,7 @@ int Mesh::getRandTri()
 
 // http://www.cs.princeton.edu/~funk/tog02.pdf
 // p8, equation (1)
-Vec3f Mesh::getRandPoint(Triangle tri)
-{
+Vec3f Mesh::getRandPoint(Triangle tri) {
 	float r1 = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
 	float r2 = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
 
@@ -607,8 +588,7 @@ Vec3f Mesh::getRandPoint(Triangle tri)
 
 // https://stackoverflow.com/questions/18755251/linear-interpolation-of-three-3d-points-in-3d-space
 // section 3.4, use barycentric coordinates to find weight associated to each vertex
-float Mesh::interpConfFactor(Vec3f point, unsigned int triIdx)
-{
+float Mesh::interpConfFactor(Vec3f point, unsigned int triIdx) {
 	unsigned int a = m_triangles[triIdx][0];
 	unsigned int b = m_triangles[triIdx][1];
 	unsigned int c = m_triangles[triIdx][2];
@@ -632,8 +612,7 @@ float Mesh::interpConfFactor(Vec3f point, unsigned int triIdx)
 	return v * m_confFacts[a] + w * m_confFacts[b] + u * m_confFacts[c];
 }
 
-void Mesh::incrSignature(float confFact, float min, float max, int binMin, int binMax)
-{
+void Mesh::incrSignature(float confFact, float min, float max, int binMin, int binMax) {
 	float normIdx = (confFact - min) / (max - min);
 	int equivBin = normIdx * (binMax - binMin);
 
@@ -697,8 +676,7 @@ std::set<unsigned int> Mesh::getVoisins(std::vector<unsigned int> tri, unsigned 
 }
 
 // retourne triangles qui contiennent le point
-std::vector<unsigned int> Mesh::containPoint(unsigned int point, std::vector<unsigned int> triangles)
-{
+std::vector<unsigned int> Mesh::containPoint(unsigned int point, std::vector<unsigned int> triangles) {
 
 	std::vector<unsigned int> result;
 	
@@ -713,8 +691,7 @@ std::vector<unsigned int> Mesh::containPoint(unsigned int point, std::vector<uns
 }
 
 // calcule cotangente
-float Mesh::cotan(unsigned int point1, unsigned int point2, unsigned int triangle)
-{
+float Mesh::cotan(unsigned int point1, unsigned int point2, unsigned int triangle) {
 	Vec3f e1, e2;
 
 	Triangle t = m_triangles[triangle];
