@@ -16,6 +16,7 @@
 #include <set>
 #include <algorithm>
 #include <ctime>
+#include <deque>
 
 #include <eigen3/Eigen/LU>
 #include <eigen3/Eigen/Sparse>
@@ -73,6 +74,7 @@ public:
 
 	void calculateConfFact ();
 	void calculateSignature ();
+    void calculatePruneSignature (float pruneFact);
     float normalizeConf(unsigned int confIdx);
     #ifdef DEBUG
     float normalizeGausscurv(unsigned int gaussIdx);
@@ -122,6 +124,11 @@ private:
 	Vec3f getRandPoint(Triangle tri);
 	float interpConfFactor(Vec3f point, unsigned int triIdx);
 	void incrSignature(float confFact, float min, float max, int binMin, int binMax);
+
+    static bool greater (float i,float j);
+    static bool smaller (float i,float j);
+    void pruneDeq(std::deque<float>& deq, float pruneFactor);
+    void makeNoise(float noiseCoef);
 
     // helpers
 	std::set<unsigned int> getVoisins(std::vector<unsigned int> tri, unsigned int point);

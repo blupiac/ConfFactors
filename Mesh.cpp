@@ -25,6 +25,9 @@
 #define MED_Y min_y + (max_y - min_y)/2
 #define MED_Z min_z + (max_z - min_z)/2
 
+#define PRUNEFACT 0.01
+#define NOISEFACT 0.0
+
 using namespace std;
 
 struct Cube {
@@ -84,6 +87,9 @@ void Mesh::loadOFF (const std::string & filename) {
     {
         in >> m_positions[i];
     }
+    if(NOISEFACT != 0) {
+    	makeNoise(NOISEFACT);
+	}
     int s;
     for (unsigned int i = 0; i < sizeT; i++) {
         in >> s;
@@ -128,13 +134,26 @@ void Mesh::loadOFF (const std::string & filename) {
     #ifdef TIMER
 	std::cout << "ConfFact calculation ended: " << (std::clock() - tInit) / (double)CLOCKS_PER_SEC << " seconds" << std::endl;
 	#endif
-    calculateSignature();
+	if(PRUNEFACT == 0) {
+		calculateSignature();
+	}
+	else {
+		calculatePruneSignature(PRUNEFACT);
+	}
     #ifdef TIMER
 	std::cout << "Signature generation ended: " << (std::clock() - tInit) / (double)CLOCKS_PER_SEC << " seconds" << std::endl;
 	#endif
 
     centerAndScaleToUnit ();
     recomputeNormals ();
+}
+
+void Mesh::makeNoise(float noiseCoef) {
+	std::srand(std::time(nullptr));
+	for (unsigned int i = 0; i < m_positions.size (); i++) {
+		float randCoef = ((double) std::rand() / (RAND_MAX)) + 1;
+		m_positions[i] += m_positions[i] * randCoef * NOISEFACT;
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -198,6 +217,7 @@ void Mesh::calculateConfFact () {
 
 	minConf = m_confFacts[result.first - m_confFacts.begin()];
 	maxConf = m_confFacts[result.second - m_confFacts.begin()];
+	std::cout << minConf << " " << maxConf << std::endl;
 }
 
 float Mesh::normalizeConf(unsigned int confIdx) {
@@ -533,6 +553,60 @@ void Mesh::calculateSignature () {
 	#endif
 
 	printSignature(signature, m_positions.size() * 6); // *6 to account for added vertexes
+}
+
+// calculates probability
+void Mesh::calculatePruneSignature (float pruneFact) {
+	initializeSignature(-99, 100);
+
+	std::deque<float> allConfFact;
+
+	for (unsigned int i = 0; i < 5 * m_positions.size (); i++) 
+	{
+		int triangleIdx = getRandTri();
+		Vec3f randPoint = getRandPoint(m_triangles[triangleIdx]);
+		float randConfFactor = interpConfFactor(randPoint, triangleIdx);
+
+		allConfFact.push_back(randConfFactor);
+	}
+
+	#ifdef TIMER
+	std::cout << "Point generation ended: " << (std::clock() - tInit) / (double)CLOCKS_PER_SEC << " seconds" << std::endl;
+	#endif
+
+	for (unsigned int i = 0; i < m_positions.size (); i++) 
+	{
+		allConfFact.push_back(m_confFacts[i]);
+	}
+	pruneDeq(allConfFact, pruneFact);
+
+	auto result = std::minmax_element(allConfFact.begin(), allConfFact.end());
+
+	minConf = allConfFact[result.first - allConfFact.begin()];
+	maxConf = allConfFact[result.second - allConfFact.begin()];
+
+	for (unsigned int i = 0; i < allConfFact.size (); i++) 
+	{
+		incrSignature(allConfFact[i], minConf, maxConf, -99, 100);
+	}
+
+	#ifdef TIMER
+	std::cout << "Bin filling ended: " << (std::clock() - tInit) / (double)CLOCKS_PER_SEC << " seconds" << std::endl;
+	#endif
+
+	printSignature(signature, allConfFact.size()); // *6 to account for added vertexes
+}
+
+bool Mesh::greater (float i,float j) { return (i>j); }
+bool Mesh::smaller (float i,float j) { return (i<j); }
+
+void Mesh::pruneDeq(std::deque<float>& deq, float pruneFactor) {
+	unsigned int pruneNum = deq.size () * pruneFactor;
+	std::nth_element (deq.begin(), deq.begin() + pruneNum, deq.end(), greater);
+	deq.erase(deq.begin(), deq.begin() + pruneNum);
+
+	std::nth_element (deq.begin(), deq.begin() + pruneNum, deq.end(), smaller);
+	deq.erase(deq.begin(), deq.begin() + pruneNum);
 }
 
 void Mesh::initializeSignature(int min, int max) {
