@@ -9,7 +9,8 @@ Read the report of the project [here](https://github.com/blupiac/ConfFactors/blo
 
 ### Inputs
 
-The application can be built and executed without any arguments, in this case, the default mesh (*ie.* armadillo1) will be used for the calculations. The path to a .off can also be given as an argument, this file is then used for the calculations.
+The application can be built and executed without any arguments, in this case, the default mesh (*ie.* armadillo1) will be used for the calculations. The path to a .off can also be given as an argument, this file is then used for the calculations.  
+Warning: The algorithm described in the paper is only adapted to watertight meshs.
 
 ### Outputs
 
