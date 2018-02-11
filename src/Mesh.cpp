@@ -44,7 +44,6 @@ struct Cube {
 
 void Mesh::clear () {
     m_positions.clear ();
-    m_normals.clear ();
     m_triangles.clear ();
     m_nneighbours.clear();
 }
@@ -56,6 +55,12 @@ enum Dim { x, y, z };
 //--------------------------------loadOFF--------------------------------------
 //-----------------------------------------------------------------------------
 
+
+/**
+    Parses and does the pre-processing of an off file
+
+    @param filename filepath of an off file to be loaded
+*/
 void Mesh::loadOFF (const std::string & filename) {
 
 	#ifdef TIMER
@@ -149,9 +154,15 @@ void Mesh::loadOFF (const std::string & filename) {
 	#endif
 
     centerAndScaleToUnit ();
-    recomputeNormals ();
 }
 
+/**
+    Introduces noise into the mesh
+
+    @param noiseCoef noise coefficient, values between
+    0.01-0.1 give acceptable results, read readme for more
+    information
+*/
 void Mesh::makeNoise(float noiseCoef) {
 	std::srand(std::time(nullptr));
 	for (unsigned int i = 0; i < m_positions.size (); i++) {
@@ -164,6 +175,9 @@ void Mesh::makeNoise(float noiseCoef) {
 //--------------------------calculateConfFact----------------------------------
 //-----------------------------------------------------------------------------
 
+/**
+    Fills the m_confFact vector with the confFactors of the mesh
+*/
 void Mesh::calculateConfFact () {
 	minConf = 1e10;
 	maxConf = -1e10;
@@ -223,18 +237,35 @@ void Mesh::calculateConfFact () {
 	maxConf = m_confFacts[result.second - m_confFacts.begin()];
 }
 
+/**
+    Returns the given conformal factor after being normalized 
+
+    @param confIdx index of conformal factor to be returned
+    @return normalized conformal factor
+*/
 float Mesh::normalizeConf(unsigned int confIdx) {
 	return (m_confFacts[confIdx] - minConf) / (maxConf - minConf);
 }
 
 #ifdef DEBUG
+/**
+    Returns the given gaussian curvature after being normalized 
 
+    @param gaussIdx index of conformal factor to be returned
+    @return normalized gausian curvature
+*/
 float Mesh::normalizeGausscurv(unsigned int gaussIdx) {
 	return (m_gausscurv[gaussIdx] - minGauss) / (maxGauss - minGauss);
 }
 
 #endif
 
+/**
+    Returns gaussian curvature of a vertex
+
+    @param i vertex index
+    @return gaussian curvature of vertex
+*/
 float Mesh::getGaussCurv(unsigned int pointIdx) {
 	std::vector<unsigned int> neighbours = m_nneighbours[pointIdx];
 	float totalAngle = 0;
@@ -272,6 +303,12 @@ float Mesh::getGaussCurv(unsigned int pointIdx) {
 	return curv;
 }
 
+/**
+    Returns whether the vertex is inside a mesh or in its border
+
+    @param ptIdx vertex index
+    @return boolean saying whether vertex is in border or not
+*/
 bool Mesh::isBorder(unsigned int ptIdx) {
 	std::set<unsigned int> neighPoint = getVoisins(m_nneighbours[ptIdx], ptIdx);
 
@@ -298,7 +335,13 @@ bool Mesh::isBorder(unsigned int ptIdx) {
 	return false;
 }
 
-// get angle between 3 points in a 3d space
+/**
+    Returns angle of a vertex in a triangle
+
+    @param tri triangle inside of which the vertex is in
+    @param pointIdx vertex index
+    @return angle of vertex
+*/
 float Mesh::getAngle(Triangle tri, int pointIdx) {
 	// https://stackoverflow.com/questions/19729831/angle-between-3-points-in-3d-space
 
@@ -357,6 +400,12 @@ float Mesh::getAngle(Triangle tri, int pointIdx) {
 	return acos(res);
 }
 
+/**
+    Returns target curvature of a vertex
+
+    @param i vertex index
+    @return target curvature of vertex
+*/
 float Mesh::getTargetCurv(unsigned int i) {
 	std::vector<unsigned int> tris = m_nneighbours[i];
 	float area = 0;
@@ -369,6 +418,12 @@ float Mesh::getTargetCurv(unsigned int i) {
 	return totalCurv * area / totalArea;
 }
 
+/**
+    Returns area of a triangle
+
+    @param i triangle index
+    @return area of triangle
+*/
 float Mesh::getArea(unsigned int i) {
     // https://www.opengl.org/discussion_boards/showthread.php/159771-How-can-I-find-the-area-of-a-3D-triangle
     // uses a sqrt, might look for smth else later
@@ -391,6 +446,12 @@ float Mesh::getArea(unsigned int i) {
 	return 0.5 * sqrt(v3[x]*v3[x] + v3[y]*v3[y] + v3[z]*v3[z]);
 }
 
+/**
+    Returns area of a triangle
+
+    @param tri triangle
+    @return area of triangle
+*/
 float Mesh::getArea(Triangle tri) {
     // https://www.opengl.org/discussion_boards/showthread.php/159771-How-can-I-find-the-area-of-a-3D-triangle
     // uses a sqrt, might look for smth else later
@@ -413,10 +474,13 @@ float Mesh::getArea(Triangle tri) {
 	return 0.5 * sqrt(v3[x]*v3[x] + v3[y]*v3[y] + v3[z]*v3[z]);
 }
 
-// TODO: change all float to double
-
 // based, but far from copied from:
 // https://github.com/Sunwinds/3D-Geometric-Features/blob/master/ConformalFactor/CalConformalFactor.h
+/**
+    Returns laplacian matrix of the mesh
+
+    @return laplacian matrix
+*/
 Eigen::SparseMatrix<float> Mesh::getLapMatrix() {
 	// triples to be inserted later on sparse matrix
 	std::vector<Eigen::Triplet<float>> triplets;
@@ -482,6 +546,15 @@ Eigen::SparseMatrix<float> Mesh::getLapMatrix() {
 	return lap;
 }
 
+/**
+    Solves the conformal factor equation and fills the 
+    m_confFactor vector using the SparseLU solver
+
+    @param gaussDiff vector with the difference between
+    target curvature and gaussian curvature
+    @param laplacian laplacian matrix of the mesh
+    @return vector with conformal factors of each vertex
+*/
 // https://scicomp.stackexchange.com/questions/21343/solving-linear-equations-using-eigen
 std::vector<float> Mesh::solveConfFactor(std::vector<float> gaussDiff, Eigen::SparseMatrix<float> laplacian) {
 	Eigen::SparseLU<Eigen::SparseMatrix<float> > solverLap;
@@ -503,7 +576,16 @@ std::vector<float> Mesh::solveConfFactor(std::vector<float> gaussDiff, Eigen::Sp
 	return res;
 }
 
-// benchmarked this equation agains SparseLU and it did much worse on meshes from 1KB to 120MB, not sure I want to keet it
+
+/**
+    Solves the conformal factor equation and fills the 
+    m_confFactor vector using the ConjugateGradient solver
+
+    @param gaussDiff vector with the difference between
+    target curvature and gaussian curvature
+    @param laplacian laplacian matrix of the mesh
+    @return vector with conformal factors of each vertex
+*/
 // TODO? multi threading
 // recommended solver for 3D poisson eq. : https://eigen.tuxfamily.org/dox/group__TopicSparseSystems.html
 std::vector<float> Mesh::solveConfFactorCG(std::vector<float> gaussDiff, Eigen::SparseMatrix<float> laplacian) {
@@ -526,7 +608,9 @@ std::vector<float> Mesh::solveConfFactorCG(std::vector<float> gaussDiff, Eigen::
 //-------------------------calculateSignature----------------------------------
 //-----------------------------------------------------------------------------
 
-// calculates probability
+/**
+    Outputs the signature as confFact.csv on the output folder
+*/
 void Mesh::calculateSignature () {
 	initializeSignature(-99, 100);
 
@@ -555,7 +639,14 @@ void Mesh::calculateSignature () {
 	printSignature(signature, m_positions.size() * 6); // *6 to account for added vertexes
 }
 
-// calculates probability
+/**
+    Outputs the signature as confFact.csv on the output folder
+    Prunes m_confFact after point insertion
+
+    @param pruneFact total percentage of valued pruned on the
+    extremities of the m_confFact vector, ex. 0.01 -> 1% 
+    -> 0.5% of highest and 0.5% of lowest values pruned
+*/
 void Mesh::calculatePruneSignature (float pruneFact) {
 	initializeSignature(-99, 100);
 
@@ -600,6 +691,14 @@ void Mesh::calculatePruneSignature (float pruneFact) {
 bool Mesh::greater (float i,float j) { return (i>j); }
 bool Mesh::smaller (float i,float j) { return (i<j); }
 
+/**
+    Prunes conformal factor vector
+
+    @param deq deque to be pruned
+    @param pruneFactor total percentage of valued pruned on the
+    extremities of the vector, ex. 0.01 -> 1% 
+    -> 0.5% of highest and 0.5% of lowest values pruned
+*/
 void Mesh::pruneDeq(std::deque<float>& deq, float pruneFactor) {
 	unsigned int pruneNum = deq.size () * pruneFactor;
 	std::nth_element (deq.begin(), deq.begin() + pruneNum, deq.end(), greater);
@@ -609,6 +708,12 @@ void Mesh::pruneDeq(std::deque<float>& deq, float pruneFactor) {
 	deq.erase(deq.begin(), deq.begin() + pruneNum);
 }
 
+/**
+    Initializes signature with correct number of bins and indexes
+
+    @param min lowest bin index
+    @param max highest bin index
+*/
 void Mesh::initializeSignature(int min, int max) {
 	signature.resize (max - min + 1);
 
@@ -621,6 +726,12 @@ void Mesh::initializeSignature(int min, int max) {
 	}
 }
 
+/**
+    Prints signature to .csv
+
+    @param sig bin vector containing signature
+    @param totalItens total number of occurences
+*/
 void Mesh::printSignature(std::vector<Bin> sig, unsigned int totalItems) {
 	ofstream outfile;
     outfile.open ("output/confFact.csv");
@@ -636,10 +747,16 @@ void Mesh::printSignature(std::vector<Bin> sig, unsigned int totalItems) {
 	outfile.close();
 }
 
+/**
+    Returns a random triangle in the mesh, with
+    prbability of being chosen being proportional
+    to area
+
+    @return triangle index
+*/
 // https://stackoverflow.com/questions/1761626/weighted-random-numbers
 // http://forums.codeguru.com/showthread.php?320298-Searching-a-list-for-quot-closest-quot-floating-point-value-using-STL
 // TODO? https://en.wikipedia.org/wiki/Alias_method
-
 int Mesh::getRandTri() {
 	float r = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
 	float randArea = r * totalArea;
@@ -649,6 +766,12 @@ int Mesh::getRandTri() {
 	return m_sortedAreasIdx[upIt - m_areas.begin()];
 }
 
+/**
+    Returns random vertex inside of triangle
+
+    @param tri triangle
+    @return random point inside given triangle
+*/
 // http://www.cs.princeton.edu/~funk/tog02.pdf
 // p8, equation (1)
 Vec3f Mesh::getRandPoint(Triangle tri) {
@@ -660,6 +783,14 @@ Vec3f Mesh::getRandPoint(Triangle tri) {
 				sqrt(r1) * r2 * m_positions[tri[2]]);
 }
 
+/**
+    Gives the interpolated value of the conformal factor
+    using the distance to other points as weight
+
+    @param sig bin vector containing signature
+    @param totalItens total number of occurences
+    @return interpolated conformal factor
+*/
 // https://stackoverflow.com/questions/18755251/linear-interpolation-of-three-3d-points-in-3d-space
 // section 3.4, use barycentric coordinates to find weight associated to each vertex
 float Mesh::interpConfFactor(Vec3f point, unsigned int triIdx) {
@@ -686,6 +817,16 @@ float Mesh::interpConfFactor(Vec3f point, unsigned int triIdx) {
 	return v * m_confFacts[a] + w * m_confFacts[b] + u * m_confFacts[c];
 }
 
+/**
+    Increments signature according to conformal
+    factor of vertex
+
+    @param confFact conformal factor of vertex
+    @param min lowest conformal factor
+    @param max highest conformal factor
+    @param binMin lowest bin index
+    @param binMax highest bin index
+*/
 void Mesh::incrSignature(float confFact, float min, float max, int binMin, int binMax) {
 	float normIdx = (confFact - min) / (max - min);
 	int equivBin = normIdx * (binMax - binMin);
@@ -696,26 +837,13 @@ void Mesh::incrSignature(float confFact, float min, float max, int binMin, int b
 //-------------------------------helpers---------------------------------------
 //-----------------------------------------------------------------------------
 
-void Mesh::recomputeNormals () {
-    m_normals.clear ();
-    m_normals.resize (m_positions.size (), Vec3f (0.f, 0.f, 0.f));
-    for (unsigned int i = 0; i < m_triangles.size (); i++) {
-        Vec3f e01 = m_positions[m_triangles[i][1]] -  m_positions[m_triangles[i][0]];
-        Vec3f e02 = m_positions[m_triangles[i][2]] -  m_positions[m_triangles[i][0]];
-        Vec3f n = cross (e01, e02);
-        Vec3f cross = n;
-        n.normalize ();
-        for (unsigned int j = 0; j < 3; j++)
-        {
-        	// avec poids
-            m_normals[m_triangles[i][j]] += n * std::asin(length(cross));
-        }
-    }
-    for (unsigned int i = 0; i < m_normals.size (); i++)
-        m_normals[i].normalize ();
-}
+/**
+    Returns verices in a 1-neighborhood to given vertex
 
-
+    @param tri all indexes of triangles a vertex is contianed in
+    @param point vertex index
+    @return set with neighbouring points
+*/
 // donne points voisins en sachant les triangles qui contiennent le point en question
 std::set<unsigned int> Mesh::getVoisins(std::vector<unsigned int> tri, unsigned int point) {
 	std::set<unsigned int> voisins;
@@ -746,7 +874,14 @@ std::set<unsigned int> Mesh::getVoisins(std::vector<unsigned int> tri, unsigned 
 	return voisins;
 }
 
-// retourne triangles qui contiennent le point
+/**
+    Return all indexes of triangles the vertex is contianed in
+    Useful to find all triangles two points can have in common
+
+    @param point vertex index
+    @param triangles 
+    @return set with neighbouring points
+*/
 std::vector<unsigned int> Mesh::containPoint(unsigned int point, std::vector<unsigned int> triangles) {
 
 	std::vector<unsigned int> result;
@@ -761,7 +896,16 @@ std::vector<unsigned int> Mesh::containPoint(unsigned int point, std::vector<uns
 	return result;
 }
 
-// calcule cotangente
+/**
+    Return all indexes of triangles the vertex is contianed in
+    Useful to find all triangles two points can have in common
+
+    @param point1 first point in the triangle
+    @param second point in the tirangle
+    @param triangle triangl eindex 
+    @return cotangent of the vertex of the triangle that's not
+    point1 or point2
+*/
 float Mesh::cotan(unsigned int point1, unsigned int point2, unsigned int triangle) {
 	Vec3f e1, e2;
 
@@ -787,6 +931,9 @@ float Mesh::cotan(unsigned int point1, unsigned int point2, unsigned int triangl
 	
 }
 
+/**
+    scale to the unit cube and center at original
+*/
 void Mesh::centerAndScaleToUnit () {
     Vec3f c;
     for  (unsigned int i = 0; i < m_positions.size (); i++)

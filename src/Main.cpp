@@ -40,7 +40,7 @@ static const std::string DEFAULT_MESH_FILE ("models/armadillo0.off");
 static const unsigned int AO_SAMPLES = 10;
 static const float AO_RADIUS = 0.7;
 
-static const std::string appTitle ("Informatique Graphique & Realite Virtuelle - Travaux Pratiques - Algorithmes de Rendu");
+static const std::string appTitle ("IG3DA - Personal Project - Characterising shapes using conformal factors");
 static const std::string myName ("Bernard Lupiac");
 static GLint window;
 static unsigned int FPS = 0;
@@ -143,8 +143,6 @@ void printUsage () {
          << " ?: Print help" << std::endl
 
 		 << " w: Toggle wireframe mode" << std::endl 
-		 << " n: reload mesh" << std::endl
-		 << " r: recompute normals" << std::endl
 
 		 << std::endl
          << " <drag>+<left button>: rotate model" << std::endl 
@@ -273,7 +271,6 @@ void renderScene () {
     updatePerVertexColorResponse ();
     glVertexPointer (3, GL_FLOAT, sizeof (Vec3f), (GLvoid*)(&(mesh.positions()[0])));
 
-    glNormalPointer (GL_FLOAT, 3*sizeof (float), (GLvoid*)&(mesh.normals()[0]));
 	glColorPointer (4, GL_FLOAT, sizeof (Vec4f), (GLvoid*)(&(colorResponses[0])));
     glDrawElements (GL_TRIANGLES, 3*mesh.triangles().size(), GL_UNSIGNED_INT, (GLvoid*)((&mesh.triangles()[0])));
 }
@@ -301,13 +298,6 @@ void key (unsigned char keyPressed, int x, int y) {
             glutFullScreen ();
             fullScreen = true;
         }      
-        break;
-    case 'n':
-    	mesh.loadOFF (DEFAULT_MESH_FILE);
-		colorResponses.resize(mesh.positions().size());
-    	break;
-    case 'r':
-    	mesh.recomputeNormals();
     	break;
     case 'q':
     case 27:
