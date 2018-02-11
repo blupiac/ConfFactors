@@ -100,7 +100,7 @@ private:
     std::vector<Bin> signature;
     std::vector<Triangle> m_triangles;
     std::vector<std::vector<unsigned int> > m_nneighbours;
-    float totalArea, totalCurv, totalConf, minConf, maxConf;
+    float totalArea, totalCurv, minConf, maxConf;
     #ifdef DEBUG
     float minGauss, maxGauss;
     #endif

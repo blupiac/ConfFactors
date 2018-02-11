@@ -82,7 +82,7 @@ void Mesh::loadOFF (const std::string & filename) {
     m_gausscurv.resize (sizeV);
     #endif
     m_nneighbours.resize(sizeV);
-    totalArea = 0; totalCurv = 0; totalConf = 0;
+    totalArea = 0; totalCurv = 0;
     for (unsigned int i = 0; i < sizeV; i++)
     {
         in >> m_positions[i];
@@ -125,6 +125,10 @@ void Mesh::loadOFF (const std::string & filename) {
     std::sort(  std::begin(m_sortedAreasIdx), 
                 std::end(m_sortedAreasIdx),
                 [&](int i1, int i2) { return m_areas[i1] < m_areas[i2]; } );
+
+    std::sort(  std::begin(m_areas), 
+                std::end(m_areas),
+                [&](float f1, float f2) { return f1 < f2; } );
 
 	// fill confFactor vector
 	#ifdef TIMER
@@ -217,13 +221,9 @@ void Mesh::calculateConfFact () {
 
 	minConf = m_confFacts[result.first - m_confFacts.begin()];
 	maxConf = m_confFacts[result.second - m_confFacts.begin()];
-	std::cout << minConf << " " << maxConf << std::endl;
 }
 
 float Mesh::normalizeConf(unsigned int confIdx) {
-	//std::cout << "this conf: " << m_confFacts[confIdx] << " min conf: " << minConf << " max conf: " << maxConf << std::endl;
-	//std::cout << "normalized: " << (m_confFacts[confIdx] - minConf) / (maxConf - minConf) << std::endl;
-
 	return (m_confFacts[confIdx] - minConf) / (maxConf - minConf);
 }
 
@@ -646,7 +646,7 @@ int Mesh::getRandTri() {
 
 
 	std::vector<float>::iterator upIt = std::upper_bound(m_areas.begin(), m_areas.end(), randArea, FloatLessThan());;
-	return upIt - m_areas.begin();
+	return m_sortedAreasIdx[upIt - m_areas.begin()];
 }
 
 // http://www.cs.princeton.edu/~funk/tog02.pdf
@@ -689,9 +689,6 @@ float Mesh::interpConfFactor(Vec3f point, unsigned int triIdx) {
 void Mesh::incrSignature(float confFact, float min, float max, int binMin, int binMax) {
 	float normIdx = (confFact - min) / (max - min);
 	int equivBin = normIdx * (binMax - binMin);
-
-	//std::cout << "confFact: " << confFact << " min: " << min << " max: " << max << " normIdx: " << normIdx << " equivBin: " << equivBin << std::endl;
-
 	signature[equivBin].occur += 1;
 }
 
