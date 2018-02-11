@@ -7,8 +7,7 @@ SOURCES  := $(wildcard $(SRCDIR)/*.cpp)
 OBJECTS  := $(SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
 rm = rm -f
 
-OPENGL_PATH = /usr/lib/nvidia-367 # change this for your own environment
-LFLAGS = -L$(OPENGL_PATH) -lglut -lGLU -lGL -lGLEW -lm -lpthread
+LFLAGS = -lglut -lGLU -lGL -lGLEW -lm -lpthread
 
 CC = g++
 CPP = g++
